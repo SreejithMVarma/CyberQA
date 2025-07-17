@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Form, Button, Card } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import AnswerForm from '../components/AnswerForm';
+import AnswerForm from './AnswerForm';
 
 function Questions() {
   const [questions, setQuestions] = useState([]);

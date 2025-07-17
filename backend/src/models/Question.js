@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
-  id: { type: String, unique: true, default: mongoose.Types.ObjectId },
   questionText: { type: String, required: true },
   type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula'], required: true },
   cipherType: { type: String, default: '' },

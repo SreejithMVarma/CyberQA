@@ -1,0 +1,1352 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+================================================================
+File Summary
+================================================================
+
+Purpose:
+--------
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+File Format:
+------------
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  a. A separator line (================)
+  b. The file path (File: path/to/file)
+  c. Another separator line
+  d. The full contents of the file
+  e. A blank line
+
+Usage Guidelines:
+-----------------
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+Notes:
+------
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+
+================================================================
+Directory Structure
+================================================================
+.gitignore
+backend/Dockerfile.backend
+backend/package.json
+backend/src/app.js
+backend/src/middleware/auth.js
+backend/src/models/Answer.js
+backend/src/models/Question.js
+backend/src/models/User.js
+backend/src/routes/answers.js
+backend/src/routes/auth.js
+backend/src/routes/questions.js
+backend/src/server.js
+backend/tests/app.test.js
+docker-compose.yml
+frontend/.gitignore
+frontend/Dockerfile.frontend
+frontend/package.json
+frontend/public/index.html
+frontend/public/manifest.json
+frontend/public/robots.txt
+frontend/README.md
+frontend/src/App.css
+frontend/src/App.js
+frontend/src/App.test.js
+frontend/src/index.css
+frontend/src/index.js
+frontend/src/logo.svg
+frontend/src/pages/AdminDashboard.js
+frontend/src/pages/AnswerForm.js
+frontend/src/pages/Home.js
+frontend/src/pages/Login.js
+frontend/src/pages/Questions.js
+frontend/src/pages/Register.js
+frontend/src/reportWebVitals.js
+frontend/src/setupTests.js
+
+================================================================
+Files
+================================================================
+
+================
+File: backend/src/server.js
+================
+const app = require('./app');
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+================
+File: .gitignore
+================
+node_modules/
+.env
+dist/
+build/
+*.log
+
+================
+File: backend/Dockerfile.backend
+================
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .    
+EXPOSE 5000
+
+CMD ["npm", "start"]
+
+================
+File: backend/src/app.js
+================
+const express = require('express');
+const mongoose = require('mongoose');
+const passport = require('passport');
+const session = require('express-session');
+const cors = require('cors');
+require('dotenv').config();
+
+const authRoutes = require('./routes/auth');
+const questionRoutes = require('./routes/questions');
+const answerRoutes = require('./routes/answers');
+
+const app = express();
+
+// Middleware
+app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(express.json());
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error(err));
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/questions', questionRoutes);
+app.use('/api/answers', answerRoutes);
+
+app.get('/', (req, res) => res.send('CyberQA API'));
+
+module.exports = app;
+
+================
+File: backend/src/middleware/auth.js
+================
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const bcrypt = require('bcrypt');
+const User = require('../models/User');
+
+passport.use(new LocalStrategy(
+  { usernameField: 'email' },
+  async (email, password, done) => {
+    try {
+      const user = await User.findOne({ email });
+      if (!user) return done(null, false, { message: 'Incorrect email' });
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return done(null, false, { message: 'Incorrect password' });
+
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }
+));
+
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
+});
+
+const isAuthenticated = (req, res, next) => {
+  if (req.isAuthenticated()) return next();
+  res.status(401).json({ message: 'Unauthorized' });
+};
+
+const isAdmin = (req, res, next) => {
+  if (req.isAuthenticated() && req.user.role === 'admin') return next();
+  res.status(403).json({ message: 'Admin access required' });
+};
+
+module.exports = { isAuthenticated, isAdmin };
+
+================
+File: backend/src/models/Answer.js
+================
+const mongoose = require('mongoose');
+
+const answerSchema = new mongoose.Schema({
+  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+  xpEarned: { type: Number, default: 0 },
+  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' }
+});
+
+module.exports = mongoose.model('Answer', answerSchema);
+
+================
+File: backend/src/models/Question.js
+================
+const mongoose = require('mongoose');
+
+const questionSchema = new mongoose.Schema({
+  id: { type: String, unique: true, default: mongoose.Types.ObjectId },
+  questionText: { type: String, required: true },
+  type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula'], required: true },
+  cipherType: { type: String, default: '' },
+  difficulty: { type: String, enum: ['easy', 'medium', 'hard'], required: true },
+  tags: { type: [String], default: [] },
+  expectedAnswer: { type: String, default: '' },
+  testCases: { type: [{ input: String, output: String }], default: [] },
+  source: { type: String, default: '' }
+});
+
+module.exports = mongoose.model('Question', questionSchema);
+
+================
+File: backend/src/models/User.js
+================
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+
+const userSchema = new mongoose.Schema({
+  username: { type: String, unique: true, required: true },
+  email: { type: String, unique: true, required: true },
+  password: { type: String, required: true },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' },
+  xp: { type: Number, default: 0 },
+  wallet: { type: Number, default: 0 } // INR equivalent
+});
+
+userSchema.pre('save', async function (next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
+
+module.exports = mongoose.model('User', userSchema);
+
+================
+File: backend/src/routes/answers.js
+================
+const express = require('express');
+const Answer = require('../models/Answer');
+const User = require('../models/User');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const router = express.Router();
+
+// Submit answer (users)
+router.post('/', isAuthenticated, async (req, res) => {
+  try {
+    const { questionId, content } = req.body;
+    const answer = new Answer({
+      questionId,
+      userId: req.user.id,
+      content
+    });
+    await answer.save();
+    res.status(201).json(answer);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Verify answer (admin only)
+router.put('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { status, xpEarned } = req.body;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    answer.status = status;
+    answer.xpEarned = xpEarned || 0;
+    answer.verificationMethod = 'manual';
+    await answer.save();
+
+    if (status === 'verified') {
+      const user = await User.findById(answer.userId);
+      user.xp += xpEarned;
+      user.wallet += xpEarned / 10; // 10 XP = 1 INR
+      await user.save();
+    }
+    res.json(answer);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get user answers
+router.get('/user', isAuthenticated, async (req, res) => {
+  try {
+    const answers = await Answer.find({ userId: req.user.id }).populate('questionId');
+    res.json(answers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
+
+================
+File: backend/src/routes/auth.js
+================
+const express = require('express');
+const passport = require('passport');
+const User = require('../models/User');
+const router = express.Router();
+
+router.post('/register', async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+
+    const user = new User({ username, email, password, role: 'user' });
+    await user.save();
+    res.status(201).json({ message: 'User registered' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/login', passport.authenticate('local'), (req, res) => {
+  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role } });
+});
+
+router.get('/logout', (req, res) => {
+  req.logout(() => res.json({ message: 'Logged out' }));
+});
+
+router.get('/me', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role, xp: req.user.xp, wallet: req.user.wallet } });
+  } else {
+    res.status(401).json({ message: 'Not authenticated' });
+  }
+});
+
+module.exports = router;
+
+================
+File: backend/src/routes/questions.js
+================
+const express = require('express');
+const Question = require('../models/Question');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const router = express.Router();
+
+// Get all questions (public for users)
+router.get('/', isAuthenticated, async (req, res) => {
+  try {
+    const { type, difficulty, tags } = req.query;
+    const query = {};
+    if (type) query.type = type;
+    if (difficulty) query.difficulty = difficulty;
+    if (tags) query.tags = { $in: tags.split(',') };
+    const questions = await Question.find(query);
+    res.json(questions);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Create question (admin only)
+router.post('/', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const question = new Question(req.body);
+    await question.save();
+    res.status(201).json(question);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Update question (admin only)
+router.put('/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const question = await Question.findById(req.params.id);
+    if (!question) return res.status(404).json({ message: 'Question not found' });
+    Object.assign(question, req.body);
+    await question.save();
+    res.json(question);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete question (admin only)
+router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const question = await Question.findById(req.params.id);
+    if (!question) return res.status(404).json({ message: 'Question not found' });
+    await question.remove();
+    res.json({ message: 'Question deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
+
+================
+File: backend/tests/app.test.js
+================
+const request = require('supertest');
+const app = require('../src/app');
+const mongoose = require('mongoose');
+
+describe('GET /', () => {
+  it('should return CyberQA API', async () => {
+    const res = await request(app).get('/');
+    expect(res.statusCode).toBe(200);
+    expect(res.text).toBe('CyberQA API');
+  });
+});
+
+afterAll(async () => {
+  await mongoose.connection.close();
+});
+
+================
+File: docker-compose.yml
+================
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/cyberqa
+      - SESSION_SECRET=your-secret-key
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+
+================
+File: frontend/.gitignore
+================
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+================
+File: frontend/Dockerfile.frontend
+================
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+EXPOSE 3000
+
+CMD ["npm", "start"]
+
+================
+File: frontend/package.json
+================
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.10.0",
+    "bootstrap": "^5.3.7",
+    "framer-motion": "^12.23.6",
+    "react": "^19.1.0",
+    "react-bootstrap": "^2.10.10",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.7.0",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
+
+================
+File: frontend/public/index.html
+================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Web site created using create-react-app"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <!--
+      Notice the use of %PUBLIC_URL% in the tags above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>
+
+================
+File: frontend/public/manifest.json
+================
+{
+  "short_name": "React App",
+  "name": "Create React App Sample",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+
+================
+File: frontend/public/robots.txt
+================
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Disallow:
+
+================
+File: frontend/README.md
+================
+# Getting Started with Create React App
+
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## Available Scripts
+
+In the project directory, you can run:
+
+### `npm start`
+
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
+
+### `npm test`
+
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+
+### `npm run build`
+
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
+
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
+
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+
+### `npm run eject`
+
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+
+## Learn More
+
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+
+To learn React, check out the [React documentation](https://reactjs.org/).
+
+### Code Splitting
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+
+### Analyzing the Bundle Size
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+
+### Making a Progressive Web App
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+
+### Advanced Configuration
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+
+### Deployment
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+
+### `npm run build` fails to minify
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+================
+File: frontend/src/App.css
+================
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+================
+File: frontend/src/App.test.js
+================
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+================
+File: frontend/src/index.css
+================
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+================
+File: frontend/src/index.js
+================
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+
+================
+File: frontend/src/logo.svg
+================
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
+
+================
+File: frontend/src/pages/AdminDashboard.js
+================
+import React, { useState, useEffect } from 'react';
+import { Container, Form, Button, Card, Table } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+
+function AdminDashboard() {
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState([]);
+  const [newQuestion, setNewQuestion] = useState({
+    questionText: '',
+    type: '',
+    cipherType: '',
+    difficulty: '',
+    tags: '',
+    expectedAnswer: '',
+    testCases: [],
+    source: ''
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [qRes, aRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/questions', { withCredentials: true }),
+          axios.get('http://localhost:5000/api/answers/user', { withCredentials: true })
+        ]);
+        setQuestions(qRes.data);
+        setAnswers(aRes.data);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Failed to fetch data');
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleQuestionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:5000/api/questions', {
+        ...newQuestion,
+        tags: newQuestion.tags.split(',').map(tag => tag.trim())
+      }, { withCredentials: true });
+      alert('Question added');
+      setNewQuestion({ questionText: '', type: '', cipherType: '', difficulty: '', tags: '', expectedAnswer: '', testCases: [], source: '' });
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to add question');
+    }
+  };
+
+  const handleVerify = async (answerId, status, xpEarned) => {
+    try {
+      await axios.put(`http://localhost:5000/api/answers/${answerId}/verify`, { status, xpEarned }, { withCredentials: true });
+      alert('Answer verified');
+      setAnswers(answers.map(a => a._id === answerId ? { ...a, status, xpEarned } : a));
+    } catch (err) {
+      alert(err.response?.data?.message || 'Verification failed');
+    }
+  };
+
+  return (
+    <Container className="mt-5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <h2>Admin Dashboard</h2>
+        <h3>Add Question</h3>
+        <Form onSubmit={handleQuestionSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Label>Question Text</Form.Label>
+            <Form.Control
+              value={newQuestion.questionText}
+              onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Type</Form.Label>
+            <Form.Select
+              value={newQuestion.type}
+              onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+              required
+            >
+              <option value="">Select Type</option>
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select
+              value={newQuestion.difficulty}
+              onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+              required
+            >
+              <option value="">Select Difficulty</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control
+              value={newQuestion.tags}
+              onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Expected Answer</Form.Label>
+            <Form.Control
+              value={newQuestion.expectedAnswer}
+              onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
+            />
+          </Form.Group>
+          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button variant="primary" type="submit">
+              Add Question
+            </Button>
+          </motion.div>
+        </Form>
+        <h3 className="mt-5">Pending Answers</h3>
+        <Table striped bordered hover>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {answers.filter(a => a.status === 'pending').map(a => (
+              <tr key={a._id}>
+                <td>{a.questionId?.questionText}</td>
+                <td>{a.content}</td>
+                <td>{a.status}</td>
+                <td>
+                  <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+                    <Button variant="success" onClick={() => handleVerify(a._id, 'verified', 10)}>
+                      Verify
+                    </Button>
+                  </motion.div>
+                  <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+                    <Button variant="danger" onClick={() => handleVerify(a._id, 'rejected', 0)}>
+                      Reject
+                    </Button>
+                  </motion.div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default AdminDashboard;
+
+================
+File: frontend/src/pages/AnswerForm.js
+================
+import React, { useState } from 'react';
+import { Form, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+
+function AnswerForm({ questionId }) {
+  const [content, setContent] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
+      alert('Answer submitted');
+      setContent('');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Submission failed');
+    }
+  };
+
+  return (
+    <Form onSubmit={handleSubmit}>
+      <Form.Group className="mb-3">
+        <Form.Label>Answer</Form.Label>
+        <Form.Control
+          as="textarea"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+        />
+      </Form.Group>
+      <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+        <Button variant="primary" type="submit">
+          Submit Answer
+        </Button>
+      </motion.div>
+    </Form>
+  );
+}
+
+export default AnswerForm;
+
+================
+File: frontend/src/pages/Login.js
+================
+import React, { useState } from 'react';
+import { Container, Form, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:5000/api/auth/login', { email, password }, { withCredentials: true });
+      navigate('/questions');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Login failed');
+    }
+  };
+
+  return (
+    <Container className="mt-5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <h2>Login</h2>
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
+            <Form.Control
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Password</Form.Label>
+            <Form.Control
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button variant="primary" type="submit">
+              Login
+            </Button>
+          </motion.div>
+        </Form>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Login;
+
+================
+File: frontend/src/pages/Questions.js
+================
+import React, { useState, useEffect } from 'react';
+import { Container, Form, Button, Card } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import AnswerForm from './AnswerForm';
+
+function Questions() {
+  const [questions, setQuestions] = useState([]);
+  const [filters, setFilters] = useState({ type: '', difficulty: '', tags: '' });
+
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/questions', {
+          params: filters,
+          withCredentials: true
+        });
+        setQuestions(res.data);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Failed to fetch questions');
+      }
+    };
+    fetchQuestions();
+  }, [filters]);
+
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+
+  return (
+    <Container className="mt-5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <h2>Questions</h2>
+        <Form className="mb-4">
+          <Form.Group className="mb-3">
+            <Form.Label>Type</Form.Label>
+            <Form.Select name="type" onChange={handleFilterChange}>
+              <option value="">All</option>
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select name="difficulty" onChange={handleFilterChange}>
+              <option value="">All</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control name="tags" onChange={handleFilterChange} />
+          </Form.Group>
+        </Form>
+        {questions.map((q) => (
+          <motion.div key={q.id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}>
+            <Card className="mb-3">
+              <Card.Body>
+                <Card.Title>{q.questionText}</Card.Title>
+                <Card.Text>Type: {q.type}, Difficulty: {q.difficulty}, Tags: {q.tags.join(', ')}</Card.Text>
+                <AnswerForm questionId={q.id} />
+              </Card.Body>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Questions;
+
+================
+File: frontend/src/pages/Register.js
+================
+import React, { useState } from 'react';
+import { Container, Form, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+function Register() {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
+      navigate('/login');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Registration failed');
+    }
+  };
+
+  return (
+    <Container className="mt-5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <h2>Register</h2>
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Label>Username</Form.Label>
+            <Form.Control
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
+            <Form.Control
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Password</Form.Label>
+            <Form.Control
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </Form.Group>
+          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button variant="primary" type="submit">
+              Register
+            </Button>
+          </motion.div>
+        </Form>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Register;
+
+================
+File: frontend/src/reportWebVitals.js
+================
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+================
+File: frontend/src/setupTests.js
+================
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+================
+File: backend/package.json
+================
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "jest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "mongoose": "^8.16.4",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0"
+  },
+  "devDependencies": {
+    "jest": "^30.0.4",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.3"
+  }
+}
+
+================
+File: frontend/src/App.js
+================
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Questions from './pages/Questions';
+import AdminDashboard from './pages/AdminDashboard';
+
+function App() {
+  return (
+    <Router>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/questions" element={<Questions />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Routes>
+      </motion.div>
+    </Router>
+  );
+}
+
+export default App;
+
+================
+File: frontend/src/pages/Home.js
+================
+import React from 'react';
+import { Container, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+
+function Home() {
+  return (
+    <Container className="mt-5 text-center">
+      <motion.h1
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        Welcome to CyberQA
+      </motion.h1>
+      <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+        <Link to="/questions">
+          <Button variant="primary">Browse Questions</Button>
+        </Link>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Home;
+
+
+
+
+================================================================
+End of Codebase
+================================================================
