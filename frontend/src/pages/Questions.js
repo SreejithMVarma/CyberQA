@@ -36,46 +36,80 @@ function Questions() {
   }, [debouncedFilters]);
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Questions</h2>
-        {message && <Alert variant={alertVariant}>{message}</Alert>}
-        <Form className="mb-4">
-          <Form.Group className="mb-3">
-            <Form.Label>Type</Form.Label>
-            <Form.Select name="type" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
-              <option value="">All</option>
-              <option value="numeric">Numeric</option>
-              <option value="ciphertext">Ciphertext</option>
-              <option value="code">Code</option>
-              <option value="formula">Formula</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Difficulty</Form.Label>
-            <Form.Select name="difficulty" value={filters.difficulty} onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}>
-              <option value="">All</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Tags (comma-separated)</Form.Label>
-            <Form.Control
-              name="tags"
-              value={filters.tags}
-              onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
-            />
-          </Form.Group>
-        </Form>
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Questions</h2>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant={alertVariant}>{message}</Alert>
+          </motion.div>
+        )}
+        <Card className="mb-4 p-4">
+          <Form>
+            <Form.Group className="mb-3" controlId="type">
+              <Form.Label>Type</Form.Label>
+              <Form.Select
+                name="type"
+                value={filters.type}
+                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="numeric">Numeric</option>
+                <option value="ciphertext">Ciphertext</option>
+                <option value="code">Code</option>
+                <option value="formula">Formula</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="difficulty">
+              <Form.Label>Difficulty</Form.Label>
+              <Form.Select
+                name="difficulty"
+                value={filters.difficulty}
+                onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="tags">
+              <Form.Label>Tags (comma-separated)</Form.Label>
+              <Form.Control
+                name="tags"
+                value={filters.tags}
+                onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
+                placeholder="Enter tags"
+              />
+            </Form.Group>
+          </Form>
+        </Card>
         {questions.map((q) => (
-          <motion.div key={q._id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}>
+          <motion.div
+            key={q._id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
+          >
             <Card className="mb-3">
               <Card.Body>
                 <Card.Title>{q.questionText}</Card.Title>
-                <Card.Text>Type: {q.type}, Difficulty: {q.difficulty}, Tags: {q.tags.join(', ')}</Card.Text>
-                <AnswerForm questionId={q._id} setMessage={setMessage} setAlertVariant={setAlertVariant} />
+                <Card.Text className="text-muted">
+                  Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(', ')}
+                </Card.Text>
+                <AnswerForm
+                  questionId={q._id}
+                  setMessage={setMessage}
+                  setAlertVariant={setAlertVariant}
+                />
               </Card.Body>
             </Card>
           </motion.div>
