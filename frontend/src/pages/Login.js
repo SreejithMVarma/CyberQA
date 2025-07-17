@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
-import { Container, Form, Button } from 'react-bootstrap';
+import React, { useState, useContext } from 'react';
+import { Container, Form, Button, Alert } from 'react-bootstrap';
 import { motion } from 'framer-motion';
-import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/auth/login', { email, password }, { withCredentials: true });
+      await login(email, password);
       navigate('/questions');
     } catch (err) {
-      alert(err.response?.data?.message || 'Login failed');
+      setMessage(err);
     }
   };
 
@@ -23,6 +25,7 @@ function Login() {
     <Container className="mt-5">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
         <h2>Login</h2>
+        {message && <Alert variant="danger">{message}</Alert>}
         <Form onSubmit={handleSubmit}>
           <Form.Group className="mb-3">
             <Form.Label>Email</Form.Label>
