@@ -18,14 +18,8 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', passport.authenticate('local'), (req, res) => {
-  res.json({
-    user: {
-      id: req.user.id,
-      username: req.user.username,
-      email: req.user.email,
-      role: req.user.role
-    }
-  });
+  const { id, username, email, role, xp, wallet } = req.user;
+  res.json({ user: { id, username, email, role, xp, wallet } });
 });
 
 
