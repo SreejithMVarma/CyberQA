@@ -3,17 +3,19 @@ import { Form, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-function AnswerForm({ questionId }) {
+function AnswerForm({ questionId, setMessage, setAlertVariant }) {
   const [content, setContent] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
-      alert('Answer submitted');
+      setMessage('Answer submitted successfully');
+      setAlertVariant('success'); // ✅ green
       setContent('');
     } catch (err) {
-      alert(err.response?.data?.message || 'Submission failed');
+      setMessage(err.response?.data?.message || 'Submission failed');
+      setAlertVariant('danger'); // ❌ red
     }
   };
 
