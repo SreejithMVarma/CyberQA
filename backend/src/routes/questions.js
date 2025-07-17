@@ -45,9 +45,8 @@ router.put('/:id', isAuthenticated, isAdmin, async (req, res) => {
 // Delete question (admin only)
 router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const question = await Question.findById(req.params.id);
-    if (!question) return res.status(404).json({ message: 'Question not found' });
-    await question.remove();
+    const deleted = await Question.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: 'Question not found' });
     res.json({ message: 'Question deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
