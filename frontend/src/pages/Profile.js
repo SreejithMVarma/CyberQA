@@ -21,9 +21,13 @@ function Profile() {
   }, [user]);
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Profile</h2>
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Profile</h2>
         {user && (
           <Card className="mb-4">
             <Card.Body>
@@ -37,8 +41,8 @@ function Profile() {
             </Card.Body>
           </Card>
         )}
-        <h3>Your Answers</h3>
-        <Table striped bordered hover>
+        <h3 className="mb-3">Your Answers</h3>
+        <Table striped bordered hover responsive>
           <thead>
             <tr>
               <th>Question</th>
@@ -51,9 +55,9 @@ function Profile() {
             {answers.map((answer) => (
               <motion.tr
                 key={answer._id}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.3 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(answer) }}
               >
                 <td>{answer.questionId?.questionText || 'N/A'}</td>
                 <td>{answer.content}</td>
