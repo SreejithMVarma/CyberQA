@@ -1,21 +1,21 @@
 # CyberQA User Guide
 
 ## Register
-- Go to `/register`, enter username, email, and password.
-- Redirects to `/login` on success.
+- Visit `/register` and fill in your username, email, and password in the modern form.
+- Submit to register and redirect to `/login`.
 
 ## Login
-- Go to `/login`, enter email and password.
-- Redirects to `/questions` on success.
+- Visit `/login` and enter your email and password in the sleek, centered form.
+- Redirects to `/questions` on successful login.
 
 ## Browse and Submit Questions
-- Navigate to `/questions`.
-- Filter by type, difficulty, or tags.
-- Submit answers using the form below each question.
-- View submission status (success/error) via alerts.
+- Navigate to `/questions` to view questions in clean, animated cards.
+- Use the filter form (type, difficulty, tags) at the top to refine the list.
+- Submit answers using the textarea below each question.
+- See success (green) or error (red) alerts after submission.
 
 ## Profile
-- Go to `/profile` to view your XP, wallet, and submitted answers.
+- Visit `/profile` to view your username, email, XP, wallet, and submitted answers in a modern card and table layout.
 
 ## Logout
-- Click "Logout" in the navbar to end your session.
+- Click "Logout" in the sticky navbar to end your session.
