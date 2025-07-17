@@ -1,38 +1,122 @@
-.App {
-  text-align: center;
+:root {
+  --primary: #1E3A8A;
+  --secondary: #22D3EE;
+  --background: #F3F4F6;
+  --text: #1F2937;
+  --white: #FFFFFF;
+  --success: #10B981;
+  --danger: #EF4444;
+  --border: #E5E7EB;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+body {
+  background-color: var(--background);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+h1, h2, h3 {
+  color: var(--primary);
+  font-weight: 600;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+.card {
+  border: none;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  background-color: var(--white);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.App-link {
-  color: #61dafb;
+.form-control {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 0.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-@keyframes App-logo-spin {
+.form-control:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: #1E40AF;
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-secondary:hover {
+  transform: translateY(-2px);
+}
+
+.alert {
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  animation: slideIn 0.3s ease-out;
+}
+
+.alert-success {
+  background-color: var(--success);
+  color: var(--white);
+}
+
+.alert-danger {
+  background-color: var(--danger);
+  color: var(--white);
+}
+
+.navbar {
+  box-shadow: var(--shadow);
+}
+
+.nav-link {
+  color: var(--white) !important;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--secondary) !important;
+}
+
+.table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table th {
+  background-color: var(--primary);
+  color: var(--white);
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+@keyframes slideIn {
   from {
-    transform: rotate(0deg);
+    transform: translateY(-20px);
+    opacity: 0;
   }
   to {
-    transform: rotate(360deg);
+    transform: translateY(0);
+    opacity: 1;
   }
 }
