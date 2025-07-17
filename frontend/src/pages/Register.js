@@ -22,40 +22,60 @@ function Register() {
   };
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Register</h2>
-        {message && <Alert variant="danger">{message}</Alert>}
+    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="card p-4"
+        style={{ maxWidth: '400px', width: '100%' }}
+      >
+        <h2 className="text-center mb-4">Register</h2>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant="danger">{message}</Alert>
+          </motion.div>
+        )}
         <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3">
-            <Form.Label>Username</Form.Label>
+          <Form.Group className="mb-3" controlId="username">
+            <Form.Label className="form-label">Username</Form.Label>
             <Form.Control
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              placeholder="Enter your username"
             />
           </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
+          <Form.Group className="mb-3" controlId="email">
+            <Form.Label className="form-label">Email</Form.Label>
             <Form.Control
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              placeholder="Enter your email"
             />
           </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Password</Form.Label>
+          <Form.Group className="mb-3" controlId="password">
+            <Form.Label className="form-label">Password</Form.Label>
             <Form.Control
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              placeholder="Enter your password"
             />
           </Form.Group>
-          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Button variant="primary" type="submit">
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: 'spring', stiffness: 300 }}
+          >
+            <Button variant="primary" type="submit" className="w-100">
               Register
             </Button>
           </motion.div>
