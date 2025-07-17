@@ -1,20 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Form, Button, Card, Table, InputGroup, Collapse } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  Form,
+  Button,
+  Card,
+  Table,
+  InputGroup,
+  Collapse,
+} from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 function AdminDashboard() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
   const [newQuestion, setNewQuestion] = useState({
-    questionText: '',
-    type: '',
-    cipherType: '',
-    difficulty: '',
-    tags: '',
-    expectedAnswer: '',
+    questionText: "",
+    type: "",
+    cipherType: "",
+    difficulty: "",
+    tags: "",
+    expectedAnswer: "",
     testCases: [],
-    source: ''
+    source: "",
   });
   const [editQuestion, setEditQuestion] = useState(null);
   const [xpInputs, setXpInputs] = useState({});
@@ -26,13 +35,17 @@ function AdminDashboard() {
     const fetchData = async () => {
       try {
         const [qRes, aRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/questions', { withCredentials: true }),
-          axios.get('http://localhost:5000/api/answers/user', { withCredentials: true })
+          axios.get("http://localhost:5000/api/questions", {
+            withCredentials: true,
+          }),
+          axios.get("http://localhost:5000/api/answers/user", {
+            withCredentials: true,
+          }),
         ]);
         setQuestions(qRes.data);
         setAnswers(aRes.data);
       } catch (err) {
-        alert(err.response?.data?.message || 'Failed to fetch data');
+        alert(err.response?.data?.message || "Failed to fetch data");
       }
     };
     fetchData();
@@ -41,19 +54,43 @@ function AdminDashboard() {
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      const questionData = { ...newQuestion, tags: newQuestion.tags.split(',').map(tag => tag.trim()) };
+      const questionData = {
+        ...newQuestion,
+        tags: newQuestion.tags.split(",").map((tag) => tag.trim()),
+      };
       if (editQuestion) {
-        await axios.put(`http://localhost:5000/api/questions/${editQuestion._id}`, questionData, { withCredentials: true });
-        setQuestions(questions.map(q => q._id === editQuestion._id ? { ...q, ...questionData } : q));
+        await axios.put(
+          `http://localhost:5000/api/questions/${editQuestion._id}`,
+          questionData,
+          { withCredentials: true }
+        );
+        setQuestions(
+          questions.map((q) =>
+            q._id === editQuestion._id ? { ...q, ...questionData } : q
+          )
+        );
         setEditQuestion(null);
       } else {
-        const res = await axios.post('http://localhost:5000/api/questions', questionData, { withCredentials: true });
+        const res = await axios.post(
+          "http://localhost:5000/api/questions",
+          questionData,
+          { withCredentials: true }
+        );
         setQuestions([...questions, res.data]);
       }
-      setNewQuestion({ questionText: '', type: '', cipherType: '', difficulty: '', tags: '', expectedAnswer: '', testCases: [], source: '' });
-      alert(editQuestion ? 'Question updated' : 'Question added');
+      setNewQuestion({
+        questionText: "",
+        type: "",
+        cipherType: "",
+        difficulty: "",
+        tags: "",
+        expectedAnswer: "",
+        testCases: [],
+        source: "",
+      });
+      alert(editQuestion ? "Question updated" : "Question added");
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save question');
+      alert(err.response?.data?.message || "Failed to save question");
     }
   };
 
@@ -64,32 +101,42 @@ function AdminDashboard() {
       type: question.type,
       cipherType: question.cipherType,
       difficulty: question.difficulty,
-      tags: question.tags.join(','),
+      tags: question.tags.join(","),
       expectedAnswer: question.expectedAnswer,
       testCases: question.testCases,
-      source: question.source
+      source: question.source,
     });
     setOpenQuestionForm(true);
   };
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/questions/${id}`, { withCredentials: true });
-      setQuestions(questions.filter(q => q._id !== id));
-      alert('Question deleted');
+      await axios.delete(`http://localhost:5000/api/questions/${id}`, {
+        withCredentials: true,
+      });
+      setQuestions(questions.filter((q) => q._id !== id));
+      alert("Question deleted");
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete question');
+      alert(err.response?.data?.message || "Failed to delete question");
     }
   };
 
   const handleVerify = async (answerId, status) => {
     try {
-      const xpEarned = status === 'verified' ? (xpInputs[answerId] || 10) : 0;
-      await axios.put(`http://localhost:5000/api/answers/${answerId}/verify`, { status, xpEarned }, { withCredentials: true });
-      setAnswers(answers.map(a => a._id === answerId ? { ...a, status, xpEarned } : a));
-      alert('Answer verified');
+      const xpEarned = status === "verified" ? xpInputs[answerId] || 10 : 0;
+      await axios.put(
+        `http://localhost:5000/api/answers/${answerId}/verify`,
+        { status, xpEarned },
+        { withCredentials: true }
+      );
+      setAnswers(
+        answers.map((a) =>
+          a._id === answerId ? { ...a, status, xpEarned } : a
+        )
+      );
+      alert("Answer verified");
     } catch (err) {
-      alert(err.response?.data?.message || 'Verification failed');
+      alert(err.response?.data?.message || "Verification failed");
     }
   };
 
@@ -106,18 +153,25 @@ function AdminDashboard() {
           onClick={() => setOpenQuestionForm(!openQuestionForm)}
           className="p-0 mb-3 text-primary"
         >
-          {openQuestionForm ? 'Hide' : 'Show'} Question Form
+          {openQuestionForm ? "Hide" : "Show"} Question Form
         </Button>
         <Collapse in={openQuestionForm}>
           <div>
             <Card className="mb-4 p-4">
-              <h3 className="mb-4">{editQuestion ? 'Edit Question' : 'Add Question'}</h3>
+              <h3 className="mb-4">
+                {editQuestion ? "Edit Question" : "Add Question"}
+              </h3>
               <Form onSubmit={handleQuestionSubmit}>
                 <Form.Group className="mb-3" controlId="questionText">
                   <Form.Label>Question Text</Form.Label>
                   <Form.Control
                     value={newQuestion.questionText}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        questionText: e.target.value,
+                      })
+                    }
                     required
                     placeholder="Enter question text"
                   />
@@ -126,7 +180,9 @@ function AdminDashboard() {
                   <Form.Label>Type</Form.Label>
                   <Form.Select
                     value={newQuestion.type}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({ ...newQuestion, type: e.target.value })
+                    }
                     required
                   >
                     <option value="">Select Type</option>
@@ -140,7 +196,12 @@ function AdminDashboard() {
                   <Form.Label>Cipher Type</Form.Label>
                   <Form.Control
                     value={newQuestion.cipherType}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        cipherType: e.target.value,
+                      })
+                    }
                     placeholder="Enter cipher type (if applicable)"
                   />
                 </Form.Group>
@@ -148,7 +209,12 @@ function AdminDashboard() {
                   <Form.Label>Difficulty</Form.Label>
                   <Form.Select
                     value={newQuestion.difficulty}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        difficulty: e.target.value,
+                      })
+                    }
                     required
                   >
                     <option value="">Select Difficulty</option>
@@ -161,7 +227,9 @@ function AdminDashboard() {
                   <Form.Label>Tags (comma-separated)</Form.Label>
                   <Form.Control
                     value={newQuestion.tags}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({ ...newQuestion, tags: e.target.value })
+                    }
                     placeholder="Enter tags"
                   />
                 </Form.Group>
@@ -169,7 +237,12 @@ function AdminDashboard() {
                   <Form.Label>Expected Answer</Form.Label>
                   <Form.Control
                     value={newQuestion.expectedAnswer}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        expectedAnswer: e.target.value,
+                      })
+                    }
                     placeholder="Enter expected answer"
                   />
                 </Form.Group>
@@ -177,22 +250,24 @@ function AdminDashboard() {
                   <Form.Label>Source</Form.Label>
                   <Form.Control
                     value={newQuestion.source}
-                    onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
+                    onChange={(e) =>
+                      setNewQuestion({ ...newQuestion, source: e.target.value })
+                    }
                     placeholder="Enter source (if applicable)"
                   />
                 </Form.Group>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
+                  transition={{ type: "spring", stiffness: 300 }}
                 >
                   <Button variant="primary" type="submit">
-                    {editQuestion ? 'Update Question' : 'Add Question'}
+                    {editQuestion ? "Update Question" : "Add Question"}
                   </Button>
                 </motion.div>
                 {editQuestion && (
                   <motion.div
                     whileHover={{ scale: 1.05 }}
-                    transition={{ type: 'spring', stiffness: 300 }}
+                    transition={{ type: "spring", stiffness: 300 }}
                   >
                     <Button
                       variant="secondary"
@@ -207,13 +282,15 @@ function AdminDashboard() {
             </Card>
           </div>
         </Collapse>
-        <Button
-          variant="link"
+        <motion.button
           onClick={() => setOpenQuestions(!openQuestions)}
-          className="p-0 mb-3 text-primary"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="mb-3 d-flex align-items-center gap-2 btn btn-outline-primary shadow-sm"
         >
-          {openQuestions ? 'Hide' : 'Show'} Questions
-        </Button>
+          {openQuestions ? <FaChevronUp /> : <FaChevronDown />}
+          {openQuestions ? "Hide Questions" : "Show Questions"}
+        </motion.button>
         <Collapse in={openQuestions}>
           <div>
             <Table striped bordered hover responsive>
@@ -222,7 +299,8 @@ function AdminDashboard() {
                   <th>Question</th>
                   <th>Type</th>
                   <th>Difficulty</th>
-                  <th>Actions</th>
+                  <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
+
                 </tr>
               </thead>
               <tbody>
@@ -231,33 +309,35 @@ function AdminDashboard() {
                     key={q._id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
+                    transition={{
+                      duration: 0.3,
+                      delay: 0.1 * questions.indexOf(q),
+                    }}
                   >
                     <td>{q.questionText}</td>
                     <td>{q.type}</td>
                     <td>{q.difficulty}</td>
-                    <td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        transition={{ type: 'spring', stiffness: 300 }}
+                        className="d-flex gap-2"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.03 }}
+                        transition={{ duration: 0.2 }}
                       >
                         <Button
-                          variant="warning"
+                          variant="outline-warning"
+                          size="sm"
                           onClick={() => handleEdit(q)}
-                          className="me-2"
                         >
-                          Edit
+                          ✏️ Edit
                         </Button>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        transition={{ type: 'spring', stiffness: 300 }}
-                      >
                         <Button
-                          variant="danger"
+                          variant="outline-danger"
+                          size="sm"
                           onClick={() => handleDelete(q._id)}
                         >
-                          Delete
+                          🗑️ Delete
                         </Button>
                       </motion.div>
                     </td>
@@ -272,7 +352,7 @@ function AdminDashboard() {
           onClick={() => setOpenAnswers(!openAnswers)}
           className="p-0 mb-3 text-primary"
         >
-          {openAnswers ? 'Hide' : 'Show'} Pending Answers
+          {openAnswers ? "Hide" : "Show"} Pending Answers
         </Button>
         <Collapse in={openAnswers}>
           <div>
@@ -287,53 +367,63 @@ function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {answers.filter(a => a.status === 'pending').map(a => (
-                  <motion.tr
-                    key={a._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(a) }}
-                  >
-                    <td>{a.questionId?.questionText || 'N/A'}</td>
-                    <td>{a.content}</td>
-                    <td>{a.status}</td>
-                    <td>
-                      <InputGroup>
-                        <Form.Control
-                          type="number"
-                          value={xpInputs[a._id] || ''}
-                          onChange={(e) => setXpInputs({ ...xpInputs, [a._id]: parseInt(e.target.value) || 0 })}
-                          placeholder="Enter XP"
-                        />
-                      </InputGroup>
-                    </td>
-                    <td>
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        transition={{ type: 'spring', stiffness: 300 }}
-                      >
-                        <Button
-                          variant="success"
-                          onClick={() => handleVerify(a._id, 'verified')}
-                          className="me-2"
+                {answers
+                  .filter((a) => a.status === "pending")
+                  .map((a) => (
+                    <motion.tr
+                      key={a._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.3,
+                        delay: 0.1 * answers.indexOf(a),
+                      }}
+                    >
+                      <td>{a.questionId?.questionText || "N/A"}</td>
+                      <td>{a.content}</td>
+                      <td>{a.status}</td>
+                      <td>
+                        <InputGroup>
+                          <Form.Control
+                            type="number"
+                            value={xpInputs[a._id] || ""}
+                            onChange={(e) =>
+                              setXpInputs({
+                                ...xpInputs,
+                                [a._id]: parseInt(e.target.value) || 0,
+                              })
+                            }
+                            placeholder="Enter XP"
+                          />
+                        </InputGroup>
+                      </td>
+                      <td>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ type: "spring", stiffness: 300 }}
                         >
-                          Verify
-                        </Button>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        transition={{ type: 'spring', stiffness: 300 }}
-                      >
-                        <Button
-                          variant="danger"
-                          onClick={() => handleVerify(a._id, 'rejected')}
+                          <Button
+                            variant="success"
+                            onClick={() => handleVerify(a._id, "verified")}
+                            className="me-2"
+                          >
+                            Verify
+                          </Button>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ type: "spring", stiffness: 300 }}
                         >
-                          Reject
-                        </Button>
-                      </motion.div>
-                    </td>
-                  </motion.tr>
-                ))}
+                          <Button
+                            variant="danger"
+                            onClick={() => handleVerify(a._id, "rejected")}
+                          >
+                            Reject
+                          </Button>
+                        </motion.div>
+                      </td>
+                    </motion.tr>
+                  ))}
               </tbody>
             </Table>
           </div>
