@@ -11,26 +11,31 @@ function AnswerForm({ questionId, setMessage, setAlertVariant }) {
     try {
       await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
       setMessage('Answer submitted successfully');
-      setAlertVariant('success'); // ✅ green
+      setAlertVariant('success');
       setContent('');
     } catch (err) {
       setMessage(err.response?.data?.message || 'Submission failed');
-      setAlertVariant('danger'); // ❌ red
+      setAlertVariant('danger');
     }
   };
 
   return (
     <Form onSubmit={handleSubmit}>
-      <Form.Group className="mb-3">
+      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
         <Form.Label>Answer</Form.Label>
         <Form.Control
           as="textarea"
+          rows={4}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           required
+          placeholder="Enter your answer"
         />
       </Form.Group>
-      <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: 'spring', stiffness: 300 }}
+      >
         <Button variant="primary" type="submit">
           Submit Answer
         </Button>
