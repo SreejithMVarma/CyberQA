@@ -1,10 +1,11 @@
 import React from 'react';
 import { Container, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
-export function Home() {
+function Home() {
   return (
-    <Container className="mt-5">
+    <Container className="mt-5 text-center">
       <motion.h1
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -13,8 +14,12 @@ export function Home() {
         Welcome to CyberQA
       </motion.h1>
       <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-        <Button variant="primary">Get Started</Button>
+        <Link to="/questions">
+          <Button variant="primary">Browse Questions</Button>
+        </Link>
       </motion.div>
     </Container>
   );
 }
+
+export default Home;
