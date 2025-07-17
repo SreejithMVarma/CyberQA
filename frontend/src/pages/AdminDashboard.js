@@ -131,7 +131,7 @@ function AdminDashboard() {
           <tbody>
             {answers.filter(a => a.status === 'pending').map(a => (
               <tr key={a._id}>
-                <td>{a.questionId?.questionText}</td>
+                <td>{a.questionId?.questionText || 'Unknown question'}</td>
                 <td>{a.content}</td>
                 <td>{a.status}</td>
                 <td>

@@ -62,7 +62,7 @@ function Questions() {
               <Card.Body>
                 <Card.Title>{q.questionText}</Card.Title>
                 <Card.Text>Type: {q.type}, Difficulty: {q.difficulty}, Tags: {q.tags.join(', ')}</Card.Text>
-                <AnswerForm questionId={q.id} />
+                <AnswerForm questionId={q._id} />
               </Card.Body>
             </Card>
           </motion.div>
