@@ -18,8 +18,16 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', passport.authenticate('local'), (req, res) => {
-  res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role } });
+  res.json({
+    user: {
+      id: req.user.id,
+      username: req.user.username,
+      email: req.user.email,
+      role: req.user.role
+    }
+  });
 });
+
 
 router.get('/logout', (req, res) => {
   req.logout(() => res.json({ message: 'Logged out' }));
@@ -27,10 +35,20 @@ router.get('/logout', (req, res) => {
 
 router.get('/me', (req, res) => {
   if (req.isAuthenticated()) {
-    res.json({ user: { id: req.user.id, username: req.user.username, role: req.user.role, xp: req.user.xp, wallet: req.user.wallet } });
+    res.json({
+      user: {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+        role: req.user.role,
+        xp: req.user.xp,
+        wallet: req.user.wallet
+      }
+    });
   } else {
     res.status(401).json({ message: 'Not authenticated' });
   }
 });
+
 
 module.exports = router;
