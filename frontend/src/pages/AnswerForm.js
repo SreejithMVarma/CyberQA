@@ -3,18 +3,36 @@ import { Form, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-function AnswerForm({ questionId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
+function AnswerForm({ questionId, answerId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
   const [content, setContent] = useState(initialContent);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
-      setMessage('Answer submitted successfully');
-      setAlertVariant('success');
+      let res;
+      if (answerId) {
+        // Resubmission
+        res = await axios.put(
+          `http://localhost:5000/api/answers/${answerId}/resubmit`,
+          { content },
+          { withCredentials: true }
+        );
+        setMessage('Answer resubmitted successfully');
+        setAlertVariant('success');
+      } else {
+        // New submission
+        res = await axios.post(
+          'http://localhost:5000/api/answers',
+          { questionId, content },
+          { withCredentials: true }
+        );
+        setMessage('Answer submitted successfully');
+        setAlertVariant('success');
+      }
       setContent('');
-      if (onSubmitSuccess) onSubmitSuccess();
+      if (onSubmitSuccess) onSubmitSuccess(res.data);
     } catch (err) {
+      console.error('Error submitting answer:', err);
       setMessage(err.response?.data?.message || 'Submission failed');
       setAlertVariant('danger');
     }
@@ -38,7 +56,7 @@ function AnswerForm({ questionId, setMessage, setAlertVariant, initialContent = 
         transition={{ type: 'spring', stiffness: 300 }}
       >
         <Button variant="primary" type="submit">
-          {initialContent ? 'Resubmit Answer' : 'Submit Answer'}
+          {answerId ? 'Resubmit Answer' : 'Submit Answer'}
         </Button>
       </motion.div>
     </Form>

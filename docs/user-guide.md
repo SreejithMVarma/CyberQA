@@ -21,6 +21,7 @@
 - Click "Logout" in the sticky navbar to end your session.
   
 ## Resubmit Answers
-- If an admin suggests changes to your answer, you’ll see a notification in your `/profile` page.
+- If an admin suggests changes, a notification appears in your `/profile` page.
 - Review the admin’s comments in the “Your Answers” table.
-- Click “Resubmit” to open a form pre-filled with your original answer, make changes, and submit again.
+- Click “Resubmit” to edit your original answer, which updates the existing entry.
+- After resubmission, the page refreshes to show the updated answer.

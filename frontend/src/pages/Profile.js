@@ -10,15 +10,17 @@ function Profile() {
   const [answers, setAnswers] = useState([]);
   const [resubmitAnswerId, setResubmitAnswerId] = useState(null);
 
+  const fetchAnswers = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
+      setAnswers(res.data);
+    } catch (err) {
+      console.error('Error fetching answers:', err);
+      alert(err.response?.data?.message || 'Failed to fetch answers');
+    }
+  };
+
   useEffect(() => {
-    const fetchAnswers = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
-        setAnswers(res.data);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Failed to fetch answers');
-      }
-    };
     if (user) fetchAnswers();
   }, [user]);
 
@@ -117,16 +119,13 @@ function Profile() {
                 <Card.Title>Resubmit Answer</Card.Title>
                 <AnswerForm
                   questionId={answers.find((a) => a._id === resubmitAnswerId)?.questionId?._id}
+                  answerId={resubmitAnswerId}
                   setMessage={(msg) => alert(msg)}
                   setAlertVariant={(variant) => console.log(variant)}
                   initialContent={answers.find((a) => a._id === resubmitAnswerId)?.content}
                   onSubmitSuccess={() => {
+                    fetchAnswers(); // Refresh answers from server
                     setResubmitAnswerId(null);
-                    setAnswers(
-                      answers.map((a) =>
-                        a._id === resubmitAnswerId ? { ...a, status: 'pending', adminComments: '' } : a
-                      )
-                    );
                   }}
                 />
               </Card.Body>

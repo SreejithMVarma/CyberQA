@@ -64,6 +64,29 @@ router.put('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
+// Resubmit answer (users, only for their own answers)
+router.put('/:id/resubmit', isAuthenticated, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ message: 'content is required' });
+    }
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    if (answer.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized to resubmit this answer' });
+    }
+    answer.content = content;
+    answer.status = 'pending';
+    answer.adminComments = '';
+    await answer.save();
+    res.json(answer);
+  } catch (err) {
+    console.error('Error resubmitting answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Get all pending answers (admin only)
 router.get('/pending', isAuthenticated, isAdmin, async (req, res) => {
   try {

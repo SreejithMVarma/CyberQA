@@ -134,9 +134,7 @@ function AdminDashboard() {
         { withCredentials: true }
       );
       setAnswers(
-        answers.map((a) =>
-          a._id === answerId ? { ...a, status, xpEarned } : a
-        )
+        answers.filter((a) => a._id !== answerId) // Remove from table
       );
       alert("Answer verified");
     } catch (err) {
@@ -154,10 +152,12 @@ function AdminDashboard() {
         { withCredentials: true }
       );
       setAnswers(
-        answers.map((a) =>
-          a._id === answerId ? { ...a, status: 'rejected', adminComments } : a
-        )
+        answers.filter((a) => a._id !== answerId) // Remove from table
       );
+      setCommentInputs((prev) => {
+        const { [answerId]: _, ...rest } = prev;
+        return rest;
+      });
       alert("Changes suggested");
     } catch (err) {
       console.error('Error suggesting changes:', err);

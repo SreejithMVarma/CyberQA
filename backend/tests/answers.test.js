@@ -76,4 +76,40 @@ describe('Answers API', () => {
     expect(res.body[0].questionId.questionText).toBe('Test question');
     expect(res.body[0].userId.username).toBe('testuser');
   });
+
+  it('should allow user to resubmit an answer and reflect in user answers', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: user._id,
+      content: '40',
+      status: 'rejected',
+      adminComments: 'answer is wrong',
+    });
+
+    const resubmitRes = await request(app)
+      .put(`/api/answers/${answer._id}/resubmit`)
+      .set('Cookie', ['connect.sid=user-session']) // Mocked user session
+      .send({ content: '42' });
+
+    expect(resubmitRes.statusCode).toBe(200);
+    expect(resubmitRes.body.content).toBe('42');
+    expect(resubmitRes.body.status).toBe('pending');
+    expect(resubmitRes.body.adminComments).toBe('');
+
+    const updatedAnswer = await Answer.findById(answer._id);
+    expect(updatedAnswer.content).toBe('42');
+    expect(updatedAnswer.status).toBe('pending');
+    expect(updatedAnswer.adminComments).toBe('');
+
+    // Verify the updated answer appears in /api/answers/user
+    const userAnswersRes = await request(app)
+      .get('/api/answers/user')
+      .set('Cookie', ['connect.sid=user-session']); // Mocked user session
+
+    expect(userAnswersRes.statusCode).toBe(200);
+    expect(userAnswersRes.body).toBeInstanceOf(Array);
+    expect(userAnswersRes.body.some((a) => a._id === answer._id.toString())).toBe(true);
+    expect(userAnswersRes.body.find((a) => a._id === answer._id.toString()).content).toBe('42');
+    expect(userAnswersRes.body.find((a) => a._id === answer._id.toString()).status).toBe('pending');
+  });
 });
