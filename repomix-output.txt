@@ -93,51 +93,6 @@ Files
 ================================================================
 
 ================
-File: frontend/src/__tests__/Questions.test.js
-================
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import Questions from '../pages/Questions';
-import { AuthContext } from '../context/AuthContext';
-import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
-
-const mock = new MockAdapter(axios);
-
-describe('Questions Page', () => {
-  const user = { id: '1', username: 'test', role: 'user' };
-  const questions = [{ _id: '1', questionText: 'Test question', type: 'numeric', difficulty: 'easy', tags: ['test'] }];
-
-  beforeEach(() => {
-    mock.reset();
-    mock.onGet('http://localhost:5000/api/questions').reply(200, questions);
-  });
-
-  it('renders questions', async () => {
-    render(
-      <AuthContext.Provider value={{ user, loading: false }}>
-        <MemoryRouter>
-          <Questions />
-        </MemoryRouter>
-      </AuthContext.Provider>
-    );
-    await waitFor(() => {
-      expect(screen.getByText('Test question')).toBeInTheDocument();
-    });
-  });
-});
-
-================
-File: package.json
-================
-{
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  }
-}
-
-================
 File: .gitignore
 ================
 node_modules/
@@ -350,50 +305,6 @@ services:
       - "27017:27017"
 
 ================
-File: docs/admin-guide.md
-================
-# CyberQA Admin Guide
-
-## Access Dashboard
-- Log in with an admin account (set `role: 'admin'` in MongoDB).
-- Go to `/admin`.
-
-## Manage Questions
-- Add a question: Fill in the form (question text, type, difficulty, etc.) and submit.
-- Edit a question: Click "Edit" next to a question, update fields, and save.
-- Delete a question: Click "Delete" next to a question.
-
-## Verify Answers
-- View pending answers in the "Pending Answers" table.
-- Enter XP value (optional, defaults to 10).
-- Click "Verify" or "Reject" to update answer status.
-
-================
-File: docs/user-guide.md
-================
-# CyberQA User Guide
-
-## Register
-- Go to `/register`, enter username, email, and password.
-- Redirects to `/login` on success.
-
-## Login
-- Go to `/login`, enter email and password.
-- Redirects to `/questions` on success.
-
-## Browse and Submit Questions
-- Navigate to `/questions`.
-- Filter by type, difficulty, or tags.
-- Submit answers using the form below each question.
-- View submission status (success/error) via alerts.
-
-## Profile
-- Go to `/profile` to view your XP, wallet, and submitted answers.
-
-## Logout
-- Click "Logout" in the navbar to end your session.
-
-================
 File: frontend/.gitignore
 ================
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
@@ -593,46 +504,39 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
 
 ================
-File: frontend/src/App.css
+File: frontend/src/__tests__/Questions.test.js
 ================
-.App {
-  text-align: center;
-}
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import Questions from '../pages/Questions';
+import { AuthContext } from '../context/AuthContext';
+import axios from 'axios';
+import MockAdapter from 'axios-mock-adapter';
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
+const mock = new MockAdapter(axios);
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
+describe('Questions Page', () => {
+  const user = { id: '1', username: 'test', role: 'user' };
+  const questions = [{ _id: '1', questionText: 'Test question', type: 'numeric', difficulty: 'easy', tags: ['test'] }];
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
+  beforeEach(() => {
+    mock.reset();
+    mock.onGet('http://localhost:5000/api/questions').reply(200, questions);
+  });
 
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
+  it('renders questions', async () => {
+    render(
+      <AuthContext.Provider value={{ user, loading: false }}>
+        <MemoryRouter>
+          <Questions />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Test question')).toBeInTheDocument();
+    });
+  });
+});
 
 ================
 File: frontend/src/App.test.js
@@ -645,50 +549,6 @@ test('renders learn react link', () => {
   const linkElement = screen.getByText(/learn react/i);
   expect(linkElement).toBeInTheDocument();
 });
-
-================
-File: frontend/src/components/Navbar.js
-================
-import { useContext } from 'react';
-import { Navbar as BSNavbar, Nav, Container, Button } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { AuthContext } from '../context/AuthContext';
-
-function Navbar() {
-  const { user, logout } = useContext(AuthContext);
-
-  return (
-    <BSNavbar bg="dark" variant="dark" expand="lg">
-      <Container>
-        <BSNavbar.Brand as={Link} to="/">CyberQA</BSNavbar.Brand>
-        <BSNavbar.Toggle aria-controls="basic-navbar-nav" />
-        <BSNavbar.Collapse id="basic-navbar-nav">
-          <Nav className="me-auto">
-            <Nav.Link as={Link} to="/">Home</Nav.Link>
-            {user && <Nav.Link as={Link} to="/questions">Questions</Nav.Link>}
-            {user && <Nav.Link as={Link} to="/profile">Profile</Nav.Link>}
-            {user && user.role === 'admin' && <Nav.Link as={Link} to="/admin">Admin</Nav.Link>}
-          </Nav>
-          <Nav>
-            {user ? (
-              <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-                <Button variant="outline-light" onClick={logout}>Logout</Button>
-              </motion.div>
-            ) : (
-              <>
-                <Nav.Link as={Link} to="/login">Login</Nav.Link>
-                <Nav.Link as={Link} to="/register">Register</Nav.Link>
-              </>
-            )}
-          </Nav>
-        </BSNavbar.Collapse>
-      </Container>
-    </BSNavbar>
-  );
-}
-
-export default Navbar;
 
 ================
 File: frontend/src/context/AuthContext.js
@@ -743,101 +603,9 @@ export function AuthProvider({ children }) {
 }
 
 ================
-File: frontend/src/index.css
-================
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-================
 File: frontend/src/logo.svg
 ================
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
-
-================
-File: frontend/src/pages/Profile.js
-================
-import React, { useContext, useEffect, useState } from 'react';
-import { Container, Card, Table } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
-
-function Profile() {
-  const { user } = useContext(AuthContext);
-  const [answers, setAnswers] = useState([]);
-
-  useEffect(() => {
-    const fetchAnswers = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
-        setAnswers(res.data);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Failed to fetch answers');
-      }
-    };
-    if (user) fetchAnswers();
-  }, [user]);
-
-  return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Profile</h2>
-        {user && (
-          <Card className="mb-4">
-            <Card.Body>
-              <Card.Title>{user.username}</Card.Title>
-              <Card.Text>
-                <strong>Email:</strong> {user.email}<br />
-                <strong>XP:</strong> {user.xp}<br />
-                <strong>Wallet:</strong> ₹{user.wallet}<br />
-                <strong>Role:</strong> {user.role}
-              </Card.Text>
-            </Card.Body>
-          </Card>
-        )}
-        <h3>Your Answers</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Status</th>
-              <th>XP Earned</th>
-            </tr>
-          </thead>
-          <tbody>
-            {answers.map((answer) => (
-              <motion.tr
-                key={answer._id}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                <td>{answer.questionId?.questionText || 'N/A'}</td>
-                <td>{answer.content}</td>
-                <td>{answer.status}</td>
-                <td>{answer.xpEarned}</td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </Table>
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Profile;
 
 ================
 File: frontend/src/reportWebVitals.js
@@ -864,6 +632,16 @@ File: frontend/src/setupTests.js
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
+
+================
+File: package.json
+================
+{
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
 
 ================
 File: backend/src/app.js
@@ -1004,266 +782,316 @@ afterAll(async () => {
 });
 
 ================
-File: frontend/package.json
+File: docs/admin-guide.md
 ================
-{
-  "name": "frontend",
-  "version": "0.1.0",
-  "private": true,
-  "dependencies": {
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "axios": "^1.4.0",
-    "bootstrap": "^5.3.7",
-    "framer-motion": "^12.23.6",
-    "react": "^19.1.0",
-    "react-bootstrap": "^2.10.10",
-    "react-dom": "^19.1.0",
-    "react-router-dom": "^6.22.3",
-    "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
-  },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
-  "devDependencies": {
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "axios-mock-adapter": "^2.1.0",
-    "jest": "^27.5.1"
+# CyberQA Admin Guide
+
+## Access Dashboard
+- Log in with an admin account (set `role: 'admin'` in MongoDB).
+- Visit `/admin` to access the modern admin dashboard.
+
+## Manage Questions
+- Toggle the "Question Form" to add or edit questions in a clean form.
+- Fill in fields (question text, type, difficulty, etc.) and submit.
+- Edit or delete questions in the responsive table below (click "Edit" or "Delete").
+
+## Verify Answers
+- Toggle the "Pending Answers" section to view pending answers.
+- Enter custom XP values and click "Verify" (green) or "Reject" (red).
+- Animated alerts confirm actions.
+
+================
+File: docs/user-guide.md
+================
+# CyberQA User Guide
+
+## Register
+- Visit `/register` and fill in your username, email, and password in the modern form.
+- Submit to register and redirect to `/login`.
+
+## Login
+- Visit `/login` and enter your email and password in the sleek, centered form.
+- Redirects to `/questions` on successful login.
+
+## Browse and Submit Questions
+- Navigate to `/questions` to view questions in clean, animated cards.
+- Use the filter form (type, difficulty, tags) at the top to refine the list.
+- Submit answers using the textarea below each question.
+- See success (green) or error (red) alerts after submission.
+
+## Profile
+- Visit `/profile` to view your username, email, XP, wallet, and submitted answers in a modern card and table layout.
+
+## Logout
+- Click "Logout" in the sticky navbar to end your session.
+
+================
+File: frontend/src/App.css
+================
+:root {
+  --primary: #1E3A8A;
+  --secondary: #22D3EE;
+  --background: #F3F4F6;
+  --text: #1F2937;
+  --white: #FFFFFF;
+  --success: #10B981;
+  --danger: #EF4444;
+  --border: #E5E7EB;
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+}
+
+h1, h2, h3 {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.card {
+  border: none;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  background-color: var(--white);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-control {
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 0.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-control:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: #1E40AF;
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  border-radius: 6px;
+  padding: 0.75rem 1.5rem;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-secondary:hover {
+  transform: translateY(-2px);
+}
+
+.alert {
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  animation: slideIn 0.3s ease-out;
+}
+
+.alert-success {
+  background-color: var(--success);
+  color: var(--white);
+}
+
+.alert-danger {
+  background-color: var(--danger);
+  color: var(--white);
+}
+
+.navbar {
+  box-shadow: var(--shadow);
+}
+
+.nav-link {
+  color: var(--white) !important;
+  transition: color 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--secondary) !important;
+}
+
+.table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table th {
+  background-color: var(--primary);
+  color: var(--white);
+}
+
+.table td {
+  vertical-align: middle;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
 
 ================
-File: frontend/src/pages/AnswerForm.js
+File: frontend/src/components/Navbar.js
 ================
-import React, { useState } from 'react';
-import { Form, Button } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-
-function AnswerForm({ questionId, setMessage, setAlertVariant }) {
-  const [content, setContent] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
-      setMessage('Answer submitted successfully');
-      setAlertVariant('success'); // ✅ green
-      setContent('');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Submission failed');
-      setAlertVariant('danger'); // ❌ red
-    }
-  };
-
-  return (
-    <Form onSubmit={handleSubmit}>
-      <Form.Group className="mb-3">
-        <Form.Label>Answer</Form.Label>
-        <Form.Control
-          as="textarea"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-        />
-      </Form.Group>
-      <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-        <Button variant="primary" type="submit">
-          Submit Answer
-        </Button>
-      </motion.div>
-    </Form>
-  );
-}
-
-export default AnswerForm;
-
-================
-File: frontend/src/pages/Home.js
-================
-import React from 'react';
-import { Container, Button } from 'react-bootstrap';
-import { motion } from 'framer-motion';
+import { useContext } from 'react';
+import { Navbar as BSNavbar, Nav, Container, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-
-function Home() {
-  return (
-    <Container className="mt-5 text-center">
-      <motion.h1
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        Welcome to CyberQA
-      </motion.h1>
-      <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-        <Link to="/questions">
-          <Button variant="primary">Browse Questions</Button>
-        </Link>
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Home;
-
-================
-File: frontend/src/pages/Login.js
-================
-import React, { useState, useContext } from 'react';
-import { Container, Form, Button, Alert } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
-function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
-  const { login } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await login(email, password);
-      navigate('/questions');
-    } catch (err) {
-      setMessage(err);
-    }
-  };
+function Navbar() {
+  const { user, logout } = useContext(AuthContext);
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Login</h2>
-        {message && <Alert variant="danger">{message}</Alert>}
-        <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
-            <Form.Control
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Password</Form.Label>
-            <Form.Control
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </Form.Group>
-          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Button variant="primary" type="submit">
-              Login
-            </Button>
-          </motion.div>
-        </Form>
-      </motion.div>
-    </Container>
+    <BSNavbar bg="dark" variant="dark" expand="lg" sticky="top">
+      <Container>
+        <BSNavbar.Brand as={Link} to="/" className="fw-bold">CyberQA</BSNavbar.Brand>
+        <BSNavbar.Toggle aria-controls="basic-navbar-nav" />
+        <BSNavbar.Collapse id="basic-navbar-nav">
+          <Nav className="me-auto">
+            <Nav.Link as={Link} to="/" className="mx-2">Home</Nav.Link>
+            {user && <Nav.Link as={Link} to="/questions" className="mx-2">Questions</Nav.Link>}
+            {user && <Nav.Link as={Link} to="/profile" className="mx-2">Profile</Nav.Link>}
+            {user && user.role === 'admin' && <Nav.Link as={Link} to="/admin" className="mx-2">Admin</Nav.Link>}
+          </Nav>
+          <Nav>
+            {user ? (
+              <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+                <Button variant="outline-light" onClick={logout} className="mx-2">
+                  Logout
+                </Button>
+              </motion.div>
+            ) : (
+              <>
+                <Nav.Link as={Link} to="/login" className="mx-2">Login</Nav.Link>
+                <Nav.Link as={Link} to="/register" className="mx-2">Register</Nav.Link>
+              </>
+            )}
+          </Nav>
+        </BSNavbar.Collapse>
+      </Container>
+    </BSNavbar>
   );
 }
 
-export default Login;
+export default Navbar;
 
 ================
-File: frontend/src/pages/Register.js
+File: frontend/src/index.css
 ================
-import React, { useState } from 'react';
-import { Container, Form, Button, Alert } from 'react-bootstrap';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+================
+File: frontend/src/pages/Profile.js
+================
+import React, { useContext, useEffect, useState } from 'react';
+import { Container, Card, Table } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 
-function Register() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
-  const navigate = useNavigate();
+function Profile() {
+  const { user } = useContext(AuthContext);
+  const [answers, setAnswers] = useState([]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
-      navigate('/login');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Registration failed');
-    }
-  };
+  useEffect(() => {
+    const fetchAnswers = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
+        setAnswers(res.data);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Failed to fetch answers');
+      }
+    };
+    if (user) fetchAnswers();
+  }, [user]);
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Register</h2>
-        {message && <Alert variant="danger">{message}</Alert>}
-        <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3">
-            <Form.Label>Username</Form.Label>
-            <Form.Control
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
-            <Form.Control
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Password</Form.Label>
-            <Form.Control
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </Form.Group>
-          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Button variant="primary" type="submit">
-              Register
-            </Button>
-          </motion.div>
-        </Form>
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Profile</h2>
+        {user && (
+          <Card className="mb-4">
+            <Card.Body>
+              <Card.Title>{user.username}</Card.Title>
+              <Card.Text>
+                <strong>Email:</strong> {user.email}<br />
+                <strong>XP:</strong> {user.xp}<br />
+                <strong>Wallet:</strong> ₹{user.wallet}<br />
+                <strong>Role:</strong> {user.role}
+              </Card.Text>
+            </Card.Body>
+          </Card>
+        )}
+        <h3 className="mb-3">Your Answers</h3>
+        <Table striped bordered hover responsive>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Status</th>
+              <th>XP Earned</th>
+            </tr>
+          </thead>
+          <tbody>
+            {answers.map((answer) => (
+              <motion.tr
+                key={answer._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(answer) }}
+              >
+                <td>{answer.questionId?.questionText || 'N/A'}</td>
+                <td>{answer.content}</td>
+                <td>{answer.status}</td>
+                <td>{answer.xpEarned}</td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </Table>
       </motion.div>
     </Container>
   );
 }
 
-export default Register;
+export default Profile;
 
 ================
 File: backend/package.json
@@ -1408,40 +1236,378 @@ root.render(
 );
 
 ================
-File: frontend/src/pages/AdminDashboard.js
+File: frontend/src/pages/AnswerForm.js
 ================
-import React, { useState, useEffect } from 'react';
-import { Container, Form, Button, Card, Table, InputGroup } from 'react-bootstrap';
+import React, { useState } from 'react';
+import { Form, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+
+function AnswerForm({ questionId, setMessage, setAlertVariant }) {
+  const [content, setContent] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
+      setMessage('Answer submitted successfully');
+      setAlertVariant('success');
+      setContent('');
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Submission failed');
+      setAlertVariant('danger');
+    }
+  };
+
+  return (
+    <Form onSubmit={handleSubmit}>
+      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
+        <Form.Label>Answer</Form.Label>
+        <Form.Control
+          as="textarea"
+          rows={4}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+          placeholder="Enter your answer"
+        />
+      </Form.Group>
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: 'spring', stiffness: 300 }}
+      >
+        <Button variant="primary" type="submit">
+          Submit Answer
+        </Button>
+      </motion.div>
+    </Form>
+  );
+}
+
+export default AnswerForm;
+
+================
+File: frontend/src/pages/Home.js
+================
+import React from 'react';
+import { Container, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+
+function Home() {
+  return (
+    <Container className="d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '80vh' }}>
+      <motion.h1
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="mb-4 text-center"
+      >
+        Welcome to CyberQA
+      </motion.h1>
+      <motion.p
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="text-muted text-center mb-4"
+        style={{ maxWidth: '600px' }}
+      >
+        Test your cybersecurity skills, solve challenging questions, and earn XP and rewards!
+      </motion.p>
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: 'spring', stiffness: 300 }}
+      >
+        <Link to="/questions">
+          <Button variant="primary" size="lg">
+            Start Solving
+          </Button>
+        </Link>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Home;
+
+================
+File: frontend/src/pages/Login.js
+================
+import React, { useState, useContext } from 'react';
+import { Container, Form, Button, Alert } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import { AuthContext } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+
+function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await login(email, password);
+      navigate('/questions');
+    } catch (err) {
+      setMessage(err);
+    }
+  };
+
+  return (
+    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="card p-4"
+        style={{ maxWidth: '400px', width: '100%' }}
+      >
+        <h2 className="text-center mb-4">Login</h2>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant="danger">{message}</Alert>
+          </motion.div>
+        )}
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3" controlId="email">
+            <Form.Label className="form-label">Email</Form.Label>
+            <Form.Control
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="Enter your email"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="password">
+            <Form.Label className="form-label">Password</Form.Label>
+            <Form.Control
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Enter your password"
+            />
+          </Form.Group>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: 'spring', stiffness: 300 }}
+          >
+            <Button variant="primary" type="submit" className="w-100">
+              Login
+            </Button>
+          </motion.div>
+        </Form>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Login;
+
+================
+File: frontend/src/pages/Register.js
+================
+import React, { useState } from 'react';
+import { Container, Form, Button, Alert } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+function Register() {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
+      navigate('/login');
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Registration failed');
+    }
+  };
+
+  return (
+    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="card p-4"
+        style={{ maxWidth: '400px', width: '100%' }}
+      >
+        <h2 className="text-center mb-4">Register</h2>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant="danger">{message}</Alert>
+          </motion.div>
+        )}
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3" controlId="username">
+            <Form.Label className="form-label">Username</Form.Label>
+            <Form.Control
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              placeholder="Enter your username"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="email">
+            <Form.Label className="form-label">Email</Form.Label>
+            <Form.Control
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="Enter your email"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="password">
+            <Form.Label className="form-label">Password</Form.Label>
+            <Form.Control
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Enter your password"
+            />
+          </Form.Group>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: 'spring', stiffness: 300 }}
+          >
+            <Button variant="primary" type="submit" className="w-100">
+              Register
+            </Button>
+          </motion.div>
+        </Form>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Register;
+
+================
+File: frontend/package.json
+================
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.4.0",
+    "bootstrap": "^5.3.7",
+    "framer-motion": "^12.23.6",
+    "react": "^19.1.0",
+    "react-bootstrap": "^2.10.10",
+    "react-dom": "^19.1.0",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^6.22.3",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "axios-mock-adapter": "^2.1.0",
+    "jest": "^27.5.1"
+  }
+}
+
+================
+File: frontend/src/pages/AdminDashboard.js
+================
+import React, { useState, useEffect } from "react";
+import {
+  Container,
+  Form,
+  Button,
+  Card,
+  Table,
+  InputGroup,
+  Collapse,
+} from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 function AdminDashboard() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
   const [newQuestion, setNewQuestion] = useState({
-    questionText: '',
-    type: '',
-    cipherType: '',
-    difficulty: '',
-    tags: '',
-    expectedAnswer: '',
+    questionText: "",
+    type: "",
+    cipherType: "",
+    difficulty: "",
+    tags: "",
+    expectedAnswer: "",
     testCases: [],
-    source: ''
+    source: "",
   });
   const [editQuestion, setEditQuestion] = useState(null);
   const [xpInputs, setXpInputs] = useState({});
+  const [openQuestionForm, setOpenQuestionForm] = useState(true);
+  const [openQuestions, setOpenQuestions] = useState(true);
+  const [openAnswers, setOpenAnswers] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [qRes, aRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/questions', { withCredentials: true }),
-          axios.get('http://localhost:5000/api/answers/user', { withCredentials: true })
+          axios.get("http://localhost:5000/api/questions", {
+            withCredentials: true,
+          }),
+          axios.get("http://localhost:5000/api/answers/user", {
+            withCredentials: true,
+          }),
         ]);
         setQuestions(qRes.data);
         setAnswers(aRes.data);
       } catch (err) {
-        alert(err.response?.data?.message || 'Failed to fetch data');
+        alert(err.response?.data?.message || "Failed to fetch data");
       }
     };
     fetchData();
@@ -1450,19 +1616,43 @@ function AdminDashboard() {
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      const questionData = { ...newQuestion, tags: newQuestion.tags.split(',').map(tag => tag.trim()) };
+      const questionData = {
+        ...newQuestion,
+        tags: newQuestion.tags.split(",").map((tag) => tag.trim()),
+      };
       if (editQuestion) {
-        await axios.put(`http://localhost:5000/api/questions/${editQuestion._id}`, questionData, { withCredentials: true });
-        setQuestions(questions.map(q => q._id === editQuestion._id ? { ...q, ...questionData } : q));
+        await axios.put(
+          `http://localhost:5000/api/questions/${editQuestion._id}`,
+          questionData,
+          { withCredentials: true }
+        );
+        setQuestions(
+          questions.map((q) =>
+            q._id === editQuestion._id ? { ...q, ...questionData } : q
+          )
+        );
         setEditQuestion(null);
       } else {
-        const res = await axios.post('http://localhost:5000/api/questions', questionData, { withCredentials: true });
+        const res = await axios.post(
+          "http://localhost:5000/api/questions",
+          questionData,
+          { withCredentials: true }
+        );
         setQuestions([...questions, res.data]);
       }
-      setNewQuestion({ questionText: '', type: '', cipherType: '', difficulty: '', tags: '', expectedAnswer: '', testCases: [], source: '' });
-      alert(editQuestion ? 'Question updated' : 'Question added');
+      setNewQuestion({
+        questionText: "",
+        type: "",
+        cipherType: "",
+        difficulty: "",
+        tags: "",
+        expectedAnswer: "",
+        testCases: [],
+        source: "",
+      });
+      alert(editQuestion ? "Question updated" : "Question added");
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save question');
+      alert(err.response?.data?.message || "Failed to save question");
     }
   };
 
@@ -1473,191 +1663,333 @@ function AdminDashboard() {
       type: question.type,
       cipherType: question.cipherType,
       difficulty: question.difficulty,
-      tags: question.tags.join(','),
+      tags: question.tags.join(","),
       expectedAnswer: question.expectedAnswer,
       testCases: question.testCases,
-      source: question.source
+      source: question.source,
     });
+    setOpenQuestionForm(true);
   };
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/questions/${id}`, { withCredentials: true });
-      setQuestions(questions.filter(q => q._id !== id));
-      alert('Question deleted');
+      await axios.delete(`http://localhost:5000/api/questions/${id}`, {
+        withCredentials: true,
+      });
+      setQuestions(questions.filter((q) => q._id !== id));
+      alert("Question deleted");
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete question');
+      alert(err.response?.data?.message || "Failed to delete question");
     }
   };
 
   const handleVerify = async (answerId, status) => {
     try {
-      const xpEarned = status === 'verified' ? (xpInputs[answerId] || 10) : 0;
-      await axios.put(`http://localhost:5000/api/answers/${answerId}/verify`, { status, xpEarned }, { withCredentials: true });
-      setAnswers(answers.map(a => a._id === answerId ? { ...a, status, xpEarned } : a));
-      alert('Answer verified');
+      const xpEarned = status === "verified" ? xpInputs[answerId] || 10 : 0;
+      await axios.put(
+        `http://localhost:5000/api/answers/${answerId}/verify`,
+        { status, xpEarned },
+        { withCredentials: true }
+      );
+      setAnswers(
+        answers.map((a) =>
+          a._id === answerId ? { ...a, status, xpEarned } : a
+        )
+      );
+      alert("Answer verified");
     } catch (err) {
-      alert(err.response?.data?.message || 'Verification failed');
+      alert(err.response?.data?.message || "Verification failed");
     }
   };
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Admin Dashboard</h2>
-        <h3>{editQuestion ? 'Edit Question' : 'Add Question'}</h3>
-        <Form onSubmit={handleQuestionSubmit}>
-          <Form.Group className="mb-3">
-            <Form.Label>Question Text</Form.Label>
-            <Form.Control
-              value={newQuestion.questionText}
-              onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
-              required
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Type</Form.Label>
-            <Form.Select
-              value={newQuestion.type}
-              onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
-              required
-            >
-              <option value="">Select Type</option>
-              <option value="numeric">Numeric</option>
-              <option value="ciphertext">Ciphertext</option>
-              <option value="code">Code</option>
-              <option value="formula">Formula</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Cipher Type</Form.Label>
-            <Form.Control
-              value={newQuestion.cipherType}
-              onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Difficulty</Form.Label>
-            <Form.Select
-              value={newQuestion.difficulty}
-              onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
-              required
-            >
-              <option value="">Select Difficulty</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Tags (comma-separated)</Form.Label>
-            <Form.Control
-              value={newQuestion.tags}
-              onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Expected Answer</Form.Label>
-            <Form.Control
-              value={newQuestion.expectedAnswer}
-              onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Source</Form.Label>
-            <Form.Control
-              value={newQuestion.source}
-              onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
-            />
-          </Form.Group>
-          <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Button variant="primary" type="submit">
-              {editQuestion ? 'Update Question' : 'Add Question'}
-            </Button>
-          </motion.div>
-          {editQuestion && (
-            <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-              <Button variant="secondary" onClick={() => setEditQuestion(null)} className="ms-2">
-                Cancel Edit
-              </Button>
-            </motion.div>
-          )}
-        </Form>
-        <h3 className="mt-5">Questions</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Type</th>
-              <th>Difficulty</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {questions.map((q) => (
-              <motion.tr key={q._id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}>
-                <td>{q.questionText}</td>
-                <td>{q.type}</td>
-                <td>{q.difficulty}</td>
-                <td>
-                  <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-                    <Button variant="warning" onClick={() => handleEdit(q)} className="me-2">
-                      Edit
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Admin Dashboard</h2>
+        <Button
+          variant="link"
+          onClick={() => setOpenQuestionForm(!openQuestionForm)}
+          className="p-0 mb-3 text-primary"
+        >
+          {openQuestionForm ? "Hide" : "Show"} Question Form
+        </Button>
+        <Collapse in={openQuestionForm}>
+          <div>
+            <Card className="mb-4 p-4">
+              <h3 className="mb-4">
+                {editQuestion ? "Edit Question" : "Add Question"}
+              </h3>
+              <Form onSubmit={handleQuestionSubmit}>
+                <Form.Group className="mb-3" controlId="questionText">
+                  <Form.Label>Question Text</Form.Label>
+                  <Form.Control
+                    value={newQuestion.questionText}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        questionText: e.target.value,
+                      })
+                    }
+                    required
+                    placeholder="Enter question text"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="type">
+                  <Form.Label>Type</Form.Label>
+                  <Form.Select
+                    value={newQuestion.type}
+                    onChange={(e) =>
+                      setNewQuestion({ ...newQuestion, type: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="">Select Type</option>
+                    <option value="numeric">Numeric</option>
+                    <option value="ciphertext">Ciphertext</option>
+                    <option value="code">Code</option>
+                    <option value="formula">Formula</option>
+                  </Form.Select>
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="cipherType">
+                  <Form.Label>Cipher Type</Form.Label>
+                  <Form.Control
+                    value={newQuestion.cipherType}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        cipherType: e.target.value,
+                      })
+                    }
+                    placeholder="Enter cipher type (if applicable)"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="difficulty">
+                  <Form.Label>Difficulty</Form.Label>
+                  <Form.Select
+                    value={newQuestion.difficulty}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        difficulty: e.target.value,
+                      })
+                    }
+                    required
+                  >
+                    <option value="">Select Difficulty</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </Form.Select>
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="tags">
+                  <Form.Label>Tags (comma-separated)</Form.Label>
+                  <Form.Control
+                    value={newQuestion.tags}
+                    onChange={(e) =>
+                      setNewQuestion({ ...newQuestion, tags: e.target.value })
+                    }
+                    placeholder="Enter tags"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="expectedAnswer">
+                  <Form.Label>Expected Answer</Form.Label>
+                  <Form.Control
+                    value={newQuestion.expectedAnswer}
+                    onChange={(e) =>
+                      setNewQuestion({
+                        ...newQuestion,
+                        expectedAnswer: e.target.value,
+                      })
+                    }
+                    placeholder="Enter expected answer"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3" controlId="source">
+                  <Form.Label>Source</Form.Label>
+                  <Form.Control
+                    value={newQuestion.source}
+                    onChange={(e) =>
+                      setNewQuestion({ ...newQuestion, source: e.target.value })
+                    }
+                    placeholder="Enter source (if applicable)"
+                  />
+                </Form.Group>
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <Button variant="primary" type="submit">
+                    {editQuestion ? "Update Question" : "Add Question"}
+                  </Button>
+                </motion.div>
+                {editQuestion && (
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <Button
+                      variant="secondary"
+                      onClick={() => setEditQuestion(null)}
+                      className="ms-2"
+                    >
+                      Cancel Edit
                     </Button>
                   </motion.div>
-                  <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-                    <Button variant="danger" onClick={() => handleDelete(q._id)}>
-                      Delete
-                    </Button>
-                  </motion.div>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </Table>
-        <h3 className="mt-5">Pending Answers</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Status</th>
-              <th>XP</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {answers.filter(a => a.status === 'pending').map(a => (
-              <motion.tr key={a._id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}>
-                <td>{a.questionId?.questionText || 'N/A'}</td>
-                <td>{a.content}</td>
-                <td>{a.status}</td>
-                <td>
-                  <InputGroup>
-                    <Form.Control
-                      type="number"
-                      value={xpInputs[a._id] || ''}
-                      onChange={(e) => setXpInputs({ ...xpInputs, [a._id]: parseInt(e.target.value) || 0 })}
-                      placeholder="Enter XP"
-                    />
-                  </InputGroup>
-                </td>
-                <td>
-                  <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-                    <Button variant="success" onClick={() => handleVerify(a._id, 'verified')} className="me-2">
-                      Verify
-                    </Button>
-                  </motion.div>
-                  <motion.div whileHover={{ scale: 1.1 }} transition={{ type: 'spring', stiffness: 300 }}>
-                    <Button variant="danger" onClick={() => handleVerify(a._id, 'rejected')}>
-                      Reject
-                    </Button>
-                  </motion.div>
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </Table>
+                )}
+              </Form>
+            </Card>
+          </div>
+        </Collapse>
+        <motion.button
+          onClick={() => setOpenQuestions(!openQuestions)}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="mb-3 d-flex align-items-center gap-2 btn btn-outline-primary shadow-sm"
+        >
+          {openQuestions ? <FaChevronUp /> : <FaChevronDown />}
+          {openQuestions ? "Hide Questions" : "Show Questions"}
+        </motion.button>
+        <Collapse in={openQuestions}>
+          <div>
+            <Table striped bordered hover responsive>
+              <thead>
+                <tr>
+                  <th>Question</th>
+                  <th>Type</th>
+                  <th>Difficulty</th>
+                  <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
+
+                </tr>
+              </thead>
+              <tbody>
+                {questions.map((q) => (
+                  <motion.tr
+                    key={q._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: 0.1 * questions.indexOf(q),
+                    }}
+                  >
+                    <td>{q.questionText}</td>
+                    <td>{q.type}</td>
+                    <td>{q.difficulty}</td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <motion.div
+                        className="d-flex gap-2"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        whileHover={{ scale: 1.03 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <Button
+                          variant="outline-warning"
+                          size="sm"
+                          onClick={() => handleEdit(q)}
+                        >
+                          ✏️ Edit
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleDelete(q._id)}
+                        >
+                          🗑️ Delete
+                        </Button>
+                      </motion.div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        </Collapse>
+        <Button
+          variant="link"
+          onClick={() => setOpenAnswers(!openAnswers)}
+          className="p-0 mb-3 text-primary"
+        >
+          {openAnswers ? "Hide" : "Show"} Pending Answers
+        </Button>
+        <Collapse in={openAnswers}>
+          <div>
+            <Table striped bordered hover responsive>
+              <thead>
+                <tr>
+                  <th>Question</th>
+                  <th>Answer</th>
+                  <th>Status</th>
+                  <th>XP</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {answers
+                  .filter((a) => a.status === "pending")
+                  .map((a) => (
+                    <motion.tr
+                      key={a._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{
+                        duration: 0.3,
+                        delay: 0.1 * answers.indexOf(a),
+                      }}
+                    >
+                      <td>{a.questionId?.questionText || "N/A"}</td>
+                      <td>{a.content}</td>
+                      <td>{a.status}</td>
+                      <td>
+                        <InputGroup>
+                          <Form.Control
+                            type="number"
+                            value={xpInputs[a._id] || ""}
+                            onChange={(e) =>
+                              setXpInputs({
+                                ...xpInputs,
+                                [a._id]: parseInt(e.target.value) || 0,
+                              })
+                            }
+                            placeholder="Enter XP"
+                          />
+                        </InputGroup>
+                      </td>
+                      <td>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
+                          <Button
+                            variant="success"
+                            onClick={() => handleVerify(a._id, "verified")}
+                            className="me-2"
+                          >
+                            Verify
+                          </Button>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
+                          <Button
+                            variant="danger"
+                            onClick={() => handleVerify(a._id, "rejected")}
+                          >
+                            Reject
+                          </Button>
+                        </motion.div>
+                      </td>
+                    </motion.tr>
+                  ))}
+              </tbody>
+            </Table>
+          </div>
+        </Collapse>
       </motion.div>
     </Container>
   );
@@ -1706,46 +2038,80 @@ function Questions() {
   }, [debouncedFilters]);
 
   return (
-    <Container className="mt-5">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <h2>Questions</h2>
-        {message && <Alert variant={alertVariant}>{message}</Alert>}
-        <Form className="mb-4">
-          <Form.Group className="mb-3">
-            <Form.Label>Type</Form.Label>
-            <Form.Select name="type" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}>
-              <option value="">All</option>
-              <option value="numeric">Numeric</option>
-              <option value="ciphertext">Ciphertext</option>
-              <option value="code">Code</option>
-              <option value="formula">Formula</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Difficulty</Form.Label>
-            <Form.Select name="difficulty" value={filters.difficulty} onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}>
-              <option value="">All</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3">
-            <Form.Label>Tags (comma-separated)</Form.Label>
-            <Form.Control
-              name="tags"
-              value={filters.tags}
-              onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
-            />
-          </Form.Group>
-        </Form>
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Questions</h2>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant={alertVariant}>{message}</Alert>
+          </motion.div>
+        )}
+        <Card className="mb-4 p-4">
+          <Form>
+            <Form.Group className="mb-3" controlId="type">
+              <Form.Label>Type</Form.Label>
+              <Form.Select
+                name="type"
+                value={filters.type}
+                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="numeric">Numeric</option>
+                <option value="ciphertext">Ciphertext</option>
+                <option value="code">Code</option>
+                <option value="formula">Formula</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="difficulty">
+              <Form.Label>Difficulty</Form.Label>
+              <Form.Select
+                name="difficulty"
+                value={filters.difficulty}
+                onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="tags">
+              <Form.Label>Tags (comma-separated)</Form.Label>
+              <Form.Control
+                name="tags"
+                value={filters.tags}
+                onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
+                placeholder="Enter tags"
+              />
+            </Form.Group>
+          </Form>
+        </Card>
         {questions.map((q) => (
-          <motion.div key={q._id} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}>
+          <motion.div
+            key={q._id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
+          >
             <Card className="mb-3">
               <Card.Body>
                 <Card.Title>{q.questionText}</Card.Title>
-                <Card.Text>Type: {q.type}, Difficulty: {q.difficulty}, Tags: {q.tags.join(', ')}</Card.Text>
-                <AnswerForm questionId={q._id} setMessage={setMessage} setAlertVariant={setAlertVariant} />
+                <Card.Text className="text-muted">
+                  Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(', ')}
+                </Card.Text>
+                <AnswerForm
+                  questionId={q._id}
+                  setMessage={setMessage}
+                  setAlertVariant={setAlertVariant}
+                />
               </Card.Body>
             </Card>
           </motion.div>
