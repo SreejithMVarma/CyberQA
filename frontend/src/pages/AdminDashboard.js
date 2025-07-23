@@ -27,7 +27,7 @@ function AdminDashboard() {
   });
   const [editQuestion, setEditQuestion] = useState(null);
   const [xpInputs, setXpInputs] = useState({});
-  const [commentInputs, setCommentInputs] = useState({}); // New state for admin comments
+  const [commentInputs, setCommentInputs] = useState({});
   const [openQuestionForm, setOpenQuestionForm] = useState(true);
   const [openQuestions, setOpenQuestions] = useState(true);
   const [openAnswers, setOpenAnswers] = useState(true);
@@ -39,13 +39,14 @@ function AdminDashboard() {
           axios.get("http://localhost:5000/api/questions", {
             withCredentials: true,
           }),
-          axios.get("http://localhost:5000/api/answers/user", {
+          axios.get("http://localhost:5000/api/answers/pending", {
             withCredentials: true,
           }),
         ]);
         setQuestions(qRes.data);
         setAnswers(aRes.data);
       } catch (err) {
+        console.error('Error fetching data:', err);
         alert(err.response?.data?.message || "Failed to fetch data");
       }
     };
@@ -91,6 +92,7 @@ function AdminDashboard() {
       });
       alert(editQuestion ? "Question updated" : "Question added");
     } catch (err) {
+      console.error('Error saving question:', err);
       alert(err.response?.data?.message || "Failed to save question");
     }
   };
@@ -118,6 +120,7 @@ function AdminDashboard() {
       setQuestions(questions.filter((q) => q._id !== id));
       alert("Question deleted");
     } catch (err) {
+      console.error('Error deleting question:', err);
       alert(err.response?.data?.message || "Failed to delete question");
     }
   };
@@ -137,6 +140,7 @@ function AdminDashboard() {
       );
       alert("Answer verified");
     } catch (err) {
+      console.error('Error verifying answer:', err);
       alert(err.response?.data?.message || "Verification failed");
     }
   };
@@ -156,6 +160,7 @@ function AdminDashboard() {
       );
       alert("Changes suggested");
     } catch (err) {
+      console.error('Error suggesting changes:', err);
       alert(err.response?.data?.message || "Failed to suggest changes");
     }
   };
@@ -387,90 +392,94 @@ function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {answers
-                  .filter((a) => a.status === "pending")
-                  .map((a) => (
-                    <motion.tr
-                      key={a._id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.3,
-                        delay: 0.1 * answers.indexOf(a),
-                      }}
-                    >
-                      <td>{a.questionId?.questionText || "N/A"}</td>
-                      <td>{a.content}</td>
-                      <td>{a.status}</td>
-                      <td>
-                        <InputGroup>
-                          <Form.Control
-                            type="number"
-                            value={xpInputs[a._id] || ""}
-                            onChange={(e) =>
-                              setXpInputs({
-                                ...xpInputs,
-                                [a._id]: parseInt(e.target.value) || 0,
-                              })
-                            }
-                            placeholder="Enter XP"
-                          />
-                        </InputGroup>
-                      </td>
-                      <td>
-                        <InputGroup>
-                          <Form.Control
-                            type="text"
-                            value={commentInputs[a._id] || ""}
-                            onChange={(e) =>
-                              setCommentInputs({
-                                ...commentInputs,
-                                [a._id]: e.target.value,
-                              })
-                            }
-                            placeholder="Enter suggestions"
-                          />
-                        </InputGroup>
-                      </td>
-                      <td>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
-                          <Button
-                            variant="success"
-                            onClick={() => handleVerify(a._id, "verified")}
-                            className="me-2"
+                {answers.map((a) => (
+                  <motion.tr
+                    key={a._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: 0.1 * answers.indexOf(a),
+                    }}
+                  >
+                    <td>{a.questionId?.questionText || "N/A"}</td>
+                    <td>{a.content}</td>
+                    <td>{a.status}</td>
+                    <td>
+                      <InputGroup>
+                        <Form.Control
+                          type="number"
+                          value={xpInputs[a._id] || ""}
+                          onChange={(e) =>
+                            setXpInputs({
+                              ...xpInputs,
+                              [a._id]: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          placeholder="Enter XP"
+                          disabled={a.status !== "pending"}
+                        />
+                      </InputGroup>
+                    </td>
+                    <td>
+                      <InputGroup>
+                        <Form.Control
+                          type="text"
+                          value={commentInputs[a._id] || ""}
+                          onChange={(e) =>
+                            setCommentInputs({
+                              ...commentInputs,
+                              [a._id]: e.target.value,
+                            })
+                          }
+                          placeholder="Enter suggestions"
+                          disabled={a.status !== "pending"}
+                        />
+                      </InputGroup>
+                    </td>
+                    <td>
+                      {a.status === "pending" && (
+                        <>
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
                           >
-                            Verify
-                          </Button>
-                        </motion.div>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
-                          <Button
-                            variant="danger"
-                            onClick={() => handleVerify(a._id, "rejected")}
-                            className="me-2"
+                            <Button
+                              variant="success"
+                              onClick={() => handleVerify(a._id, "verified")}
+                              className="me-2"
+                            >
+                              Verify
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
                           >
-                            Reject
-                          </Button>
-                        </motion.div>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
-                          <Button
-                            variant="warning"
-                            onClick={() => handleSuggestChanges(a._id)}
+                            <Button
+                              variant="danger"
+                              onClick={() => handleVerify(a._id, "rejected")}
+                              className="me-2"
+                            >
+                              Reject
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
                           >
-                            Suggest Changes
-                          </Button>
-                        </motion.div>
-                      </td>
-                    </motion.tr>
-                  ))}
+                            <Button
+                              variant="warning"
+                              onClick={() => handleSuggestChanges(a._id)}
+                            >
+                              Suggest Changes
+                            </Button>
+                          </motion.div>
+                        </>
+                      )}
+                    </td>
+                  </motion.tr>
+                ))}
               </tbody>
             </Table>
           </div>

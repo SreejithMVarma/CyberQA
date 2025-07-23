@@ -8,14 +8,18 @@ const router = express.Router();
 router.post('/', isAuthenticated, async (req, res) => {
   try {
     const { questionId, content } = req.body;
+    if (!questionId || !content) {
+      return res.status(400).json({ message: 'questionId and content are required' });
+    }
     const answer = new Answer({
       questionId,
       userId: req.user.id,
-      content
+      content,
     });
     await answer.save();
     res.status(201).json(answer);
   } catch (err) {
+    console.error('Error saving answer:', err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -39,6 +43,7 @@ router.put('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
     }
     res.json(answer);
   } catch (err) {
+    console.error('Error verifying answer:', err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -54,16 +59,31 @@ router.put('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
     await answer.save();
     res.json(answer);
   } catch (err) {
+    console.error('Error suggesting changes:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Get user answers
-router.get('/user', isAuthenticated, async (req, res) => {
+// Get all pending answers (admin only)
+router.get('/pending', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const answers = await Answer.find({ userId: req.user.id }).populate('questionId');
+    const answers = await Answer.find({ status: 'pending' })
+      .populate('questionId', 'questionText')
+      .populate('userId', 'username');
     res.json(answers);
   } catch (err) {
+    console.error('Error fetching pending answers:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get user answers (for user profile)
+router.get('/user', isAuthenticated, async (req, res) => {
+  try {
+    const answers = await Answer.find({ userId: req.user.id }).populate('questionId', 'questionText');
+    res.json(answers);
+  } catch (err) {
+    console.error('Error fetching user answers:', err);
     res.status(500).json({ message: err.message });
   }
 });
