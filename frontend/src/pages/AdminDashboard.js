@@ -136,7 +136,7 @@ function AdminDashboard() {
       setAnswers(
         answers.filter((a) => a._id !== answerId) // Remove from table
       );
-      alert("Answer verified");
+      alert(`Answer ${status}`);
     } catch (err) {
       console.error('Error verifying answer:', err);
       alert(err.response?.data?.message || "Verification failed");
