@@ -27,6 +27,7 @@ function AdminDashboard() {
   });
   const [editQuestion, setEditQuestion] = useState(null);
   const [xpInputs, setXpInputs] = useState({});
+  const [commentInputs, setCommentInputs] = useState({}); // New state for admin comments
   const [openQuestionForm, setOpenQuestionForm] = useState(true);
   const [openQuestions, setOpenQuestions] = useState(true);
   const [openAnswers, setOpenAnswers] = useState(true);
@@ -137,6 +138,25 @@ function AdminDashboard() {
       alert("Answer verified");
     } catch (err) {
       alert(err.response?.data?.message || "Verification failed");
+    }
+  };
+
+  const handleSuggestChanges = async (answerId) => {
+    try {
+      const adminComments = commentInputs[answerId] || '';
+      await axios.put(
+        `http://localhost:5000/api/answers/${answerId}/suggest`,
+        { adminComments },
+        { withCredentials: true }
+      );
+      setAnswers(
+        answers.map((a) =>
+          a._id === answerId ? { ...a, status: 'rejected', adminComments } : a
+        )
+      );
+      alert("Changes suggested");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to suggest changes");
     }
   };
 
@@ -300,7 +320,6 @@ function AdminDashboard() {
                   <th>Type</th>
                   <th>Difficulty</th>
                   <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
-
                 </tr>
               </thead>
               <tbody>
@@ -363,6 +382,7 @@ function AdminDashboard() {
                   <th>Answer</th>
                   <th>Status</th>
                   <th>XP</th>
+                  <th>Comments</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -398,6 +418,21 @@ function AdminDashboard() {
                         </InputGroup>
                       </td>
                       <td>
+                        <InputGroup>
+                          <Form.Control
+                            type="text"
+                            value={commentInputs[a._id] || ""}
+                            onChange={(e) =>
+                              setCommentInputs({
+                                ...commentInputs,
+                                [a._id]: e.target.value,
+                              })
+                            }
+                            placeholder="Enter suggestions"
+                          />
+                        </InputGroup>
+                      </td>
+                      <td>
                         <motion.div
                           whileHover={{ scale: 1.05 }}
                           transition={{ type: "spring", stiffness: 300 }}
@@ -417,8 +452,20 @@ function AdminDashboard() {
                           <Button
                             variant="danger"
                             onClick={() => handleVerify(a._id, "rejected")}
+                            className="me-2"
                           >
                             Reject
+                          </Button>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
+                          <Button
+                            variant="warning"
+                            onClick={() => handleSuggestChanges(a._id)}
+                          >
+                            Suggest Changes
                           </Button>
                         </motion.div>
                       </td>

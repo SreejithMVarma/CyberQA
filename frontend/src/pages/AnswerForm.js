@@ -3,8 +3,8 @@ import { Form, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-function AnswerForm({ questionId, setMessage, setAlertVariant }) {
-  const [content, setContent] = useState('');
+function AnswerForm({ questionId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
+  const [content, setContent] = useState(initialContent);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -13,6 +13,7 @@ function AnswerForm({ questionId, setMessage, setAlertVariant }) {
       setMessage('Answer submitted successfully');
       setAlertVariant('success');
       setContent('');
+      if (onSubmitSuccess) onSubmitSuccess();
     } catch (err) {
       setMessage(err.response?.data?.message || 'Submission failed');
       setAlertVariant('danger');
@@ -37,7 +38,7 @@ function AnswerForm({ questionId, setMessage, setAlertVariant }) {
         transition={{ type: 'spring', stiffness: 300 }}
       >
         <Button variant="primary" type="submit">
-          Submit Answer
+          {initialContent ? 'Resubmit Answer' : 'Submit Answer'}
         </Button>
       </motion.div>
     </Form>

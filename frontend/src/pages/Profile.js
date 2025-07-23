@@ -1,12 +1,14 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Container, Card, Table } from 'react-bootstrap';
+import { Container, Card, Table, Alert, Badge, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
+import AnswerForm from './AnswerForm';
 
 function Profile() {
   const { user } = useContext(AuthContext);
   const [answers, setAnswers] = useState([]);
+  const [resubmitAnswerId, setResubmitAnswerId] = useState(null);
 
   useEffect(() => {
     const fetchAnswers = async () => {
@@ -19,6 +21,10 @@ function Profile() {
     };
     if (user) fetchAnswers();
   }, [user]);
+
+  const handleResubmit = (answerId) => {
+    setResubmitAnswerId(answerId);
+  };
 
   return (
     <Container className="my-5">
@@ -42,6 +48,20 @@ function Profile() {
           </Card>
         )}
         <h3 className="mb-3">Your Answers</h3>
+        {answers.some((a) => a.status === 'rejected' && a.adminComments) && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant="warning">
+              <Badge bg="warning" text="dark" className="me-2">
+                Action Required
+              </Badge>
+              You have answers with suggested changes. Review and resubmit below.
+            </Alert>
+          </motion.div>
+        )}
         <Table striped bordered hover responsive>
           <thead>
             <tr>
@@ -49,6 +69,8 @@ function Profile() {
               <th>Answer</th>
               <th>Status</th>
               <th>XP Earned</th>
+              <th>Admin Comments</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -63,10 +85,54 @@ function Profile() {
                 <td>{answer.content}</td>
                 <td>{answer.status}</td>
                 <td>{answer.xpEarned}</td>
+                <td>{answer.adminComments || 'None'}</td>
+                <td>
+                  {answer.status === 'rejected' && answer.adminComments && (
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleResubmit(answer._id)}
+                      >
+                        Resubmit
+                      </Button>
+                    </motion.div>
+                  )}
+                </td>
               </motion.tr>
             ))}
           </tbody>
         </Table>
+        {resubmitAnswerId && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="mt-4">
+              <Card.Body>
+                <Card.Title>Resubmit Answer</Card.Title>
+                <AnswerForm
+                  questionId={answers.find((a) => a._id === resubmitAnswerId)?.questionId?._id}
+                  setMessage={(msg) => alert(msg)}
+                  setAlertVariant={(variant) => console.log(variant)}
+                  initialContent={answers.find((a) => a._id === resubmitAnswerId)?.content}
+                  onSubmitSuccess={() => {
+                    setResubmitAnswerId(null);
+                    setAnswers(
+                      answers.map((a) =>
+                        a._id === resubmitAnswerId ? { ...a, status: 'pending', adminComments: '' } : a
+                      )
+                    );
+                  }}
+                />
+              </Card.Body>
+            </Card>
+          </motion.div>
+        )}
       </motion.div>
     </Container>
   );

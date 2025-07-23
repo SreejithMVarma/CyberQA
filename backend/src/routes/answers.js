@@ -43,6 +43,21 @@ router.put('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
+// Suggest changes for answer (admin only)
+router.put('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { adminComments } = req.body;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    answer.status = 'rejected';
+    answer.adminComments = adminComments || '';
+    await answer.save();
+    res.json(answer);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Get user answers
 router.get('/user', isAuthenticated, async (req, res) => {
   try {
