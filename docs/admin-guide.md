@@ -14,9 +14,10 @@
 - Enter custom XP values and click "Verify" (green) or "Reject" (red).
 - Animated alerts confirm actions.
   
-## Verify Answers
-- Navigate to `/admin` to view all pending answers in the "Pending Answers" table.
+### Verify Answers
+- Navigate to `/admin` to view all pending answers in the “Pending Answers” table.
+- The table displays the submitter’s username, question, answer, status, XP input, and comments.
 - For each answer, you can:
-  - Enter XP and click "Verify" to approve.
-  - Click "Reject" to decline without comments.
-  - Enter suggestions in the "Comments" field and click "Suggest Changes" to request resubmission.
+  - Enter XP and click “Verify” to approve.
+  - Click “Reject” to decline without comments.
+  - Enter suggestions in the “Comments” field and click “Suggest Changes” to request resubmission.

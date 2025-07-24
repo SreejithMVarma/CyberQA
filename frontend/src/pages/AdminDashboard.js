@@ -136,7 +136,7 @@ function AdminDashboard() {
       setAnswers(
         answers.filter((a) => a._id !== answerId) // Remove from table
       );
-      alert(`Answer ${status}`);
+      alert("Answer verified");
     } catch (err) {
       console.error('Error verifying answer:', err);
       alert(err.response?.data?.message || "Verification failed");
@@ -383,6 +383,7 @@ function AdminDashboard() {
             <Table striped bordered hover responsive>
               <thead>
                 <tr>
+                  <th>Username</th>
                   <th>Question</th>
                   <th>Answer</th>
                   <th>Status</th>
@@ -402,6 +403,7 @@ function AdminDashboard() {
                       delay: 0.1 * answers.indexOf(a),
                     }}
                   >
+                    <td>{a.userId?.username || "N/A"}</td>
                     <td>{a.questionId?.questionText || "N/A"}</td>
                     <td>{a.content}</td>
                     <td>{a.status}</td>

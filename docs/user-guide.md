@@ -1,8 +1,9 @@
 # CyberQA User Guide
 
-## Register
-- Visit `/register` and fill in your username, email, and password in the modern form.
-- Submit to register and redirect to `/login`.
+### Register
+- Navigate to `/register` to create an account.
+- Enter a unique username (3–30 characters), email, and password.
+- After successful registration, you’ll be redirected to the homepage.
 
 ## Login
 - Visit `/login` and enter your email and password in the sleek, centered form.
@@ -19,7 +20,7 @@
 
 ## Logout
 - Click "Logout" in the sticky navbar to end your session.
-  
+
 ## Resubmit Answers
 - If an admin suggests changes, a notification appears in your `/profile` page.
 - Review the admin’s comments in the “Your Answers” table.

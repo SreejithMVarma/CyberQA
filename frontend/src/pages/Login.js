@@ -8,13 +8,14 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const { login } = useContext(AuthContext);
+  const { login, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await login(email, password);
+      await refreshUser(); // Refresh user state after login
       navigate('/questions');
     } catch (err) {
       setMessage(err);

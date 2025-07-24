@@ -1,13 +1,38 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, unique: true, required: true },
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  xp: { type: Number, default: 0 },
-  wallet: { type: Number, default: 0 } // INR equivalent
+  username: {
+    type: String,
+    unique: true,
+    trim: true,
+    minlength: [3, 'Username must be at least 3 characters long'],
+    maxlength: [30, 'Username cannot exceed 30 characters'],
+    required: [function () { return this.isNew; }, 'Username is required for new users'],
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  },
+  xp: {
+    type: Number,
+    default: 0,
+  },
+  wallet: {
+    type: Number,
+    default: 0,
+  },
 });
 
 userSchema.pre('save', async function (next) {

@@ -1,48 +1,86 @@
 const express = require('express');
-const passport = require('passport');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { isAuthenticated } = require('../middleware/auth');
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+router.post('/register', async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
+    console.log('Registration request:', { username, email }); // Debug log
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Username, email, and password are required' });
+    }
+
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+    if (existingUser) {
+      return res.status(400).json({
+        message: existingUser.email === email ? 'Email already exists' : 'Username already exists',
+      });
+    }
 
-    const user = new User({ username, email, password, role: 'user' });
+    const user = new User({ username, email, password });
     await user.save();
-    res.status(201).json({ message: 'User registered' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-router.post('/login', passport.authenticate('local'), (req, res) => {
-  const { id, username, email, role, xp, wallet } = req.user;
-  res.json({ user: { id, username, email, role, xp, wallet } });
-});
-
-
-router.get('/logout', (req, res) => {
-  req.logout(() => res.json({ message: 'Logged out' }));
-});
-
-router.get('/me', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json({
-      user: {
-        id: req.user.id,
-        username: req.user.username,
-        email: req.user.email,
-        role: req.user.role,
-        xp: req.user.xp,
-        wallet: req.user.wallet
+    
+    // Initialize Passport session
+    req.login(user, (err) => {
+      if (err) {
+        console.error('Error logging in user after registration:', err);
+        return next(err);
       }
+      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username };
+      console.log('User registered:', req.session.user); // Debug log
+      return res.status(201).json({ message: 'User registered successfully', user: req.session.user });
     });
-  } else {
-    res.status(401).json({ message: 'Not authenticated' });
+  } catch (err) {
+    console.error('Error registering user:', err);
+    return res.status(500).json({ message: 'Server error during registration' });
   }
 });
 
+router.post('/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // Initialize Passport session
+    req.login(user, (err) => {
+      if (err) {
+        console.error('Error logging in user:', err);
+        return next(err);
+      }
+      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username || '' };
+      res.json({ message: 'Login successful', user: req.session.user });
+    });
+  } catch (err) {
+    console.error('Error logging in:', err);
+    res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+router.get('/me', isAuthenticated, (req, res) => {
+  res.json(req.session.user);
+});
+
+router.post('/logout', isAuthenticated, (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('Error logging out:', err);
+      return res.status(500).json({ message: 'Logout failed' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ message: 'Logout failed' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ message: 'Logout successful' });
+    });
+  });
+});
 
 module.exports = router;

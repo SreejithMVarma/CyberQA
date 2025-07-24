@@ -57,7 +57,9 @@ backend/src/routes/answers.js
 backend/src/routes/auth.js
 backend/src/routes/questions.js
 backend/src/server.js
+backend/tests/answers.test.js
 backend/tests/app.test.js
+backend/tests/auth.test.js
 docker-compose.yml
 docs/admin-guide.md
 docs/user-guide.md
@@ -91,6 +93,111 @@ package.json
 ================================================================
 Files
 ================================================================
+
+================
+File: backend/tests/auth.test.js
+================
+const request = require('supertest');
+const app = require('../src/app');
+const mongoose = require('mongoose');
+const User = require('../src/models/User');
+const bcrypt = require('bcryptjs');
+
+describe('Auth API', () => {
+  beforeAll(async () => {
+    await mongoose.connect(process.env.MONGO_URI);
+  });
+
+  afterAll(async () => {
+    await User.deleteMany({});
+    await mongoose.connection.db.collection('sessions').deleteMany({});
+    await mongoose.connection.close();
+  });
+
+  it('should register a new user with username and authenticate', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        username: 'testuser',
+        email: 'test@example.com',
+        password: 'password',
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.message).toBe('User registered successfully');
+    expect(res.body.user.username).toBe('testuser');
+    expect(res.body.user.email).toBe('test@example.com');
+
+    const user = await User.findOne({ email: 'test@example.com' });
+    expect(user.username).toBe('testuser');
+
+    // Verify session authentication
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', res.headers['set-cookie']);
+    expect(meRes.statusCode).toBe(200);
+    expect(meRes.body.username).toBe('testuser');
+  });
+
+  it('should prevent registration with duplicate username', async () => {
+    await User.create({
+      username: 'testuser',
+      email: 'test1@example.com',
+      password: 'password',
+    });
+
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        username: 'testuser',
+        email: 'test2@example.com',
+        password: 'password',
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe('Username already exists');
+  });
+
+  it('should prevent registration with missing username', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        email: 'test3@example.com',
+        password: 'password',
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe('Username, email, and password are required');
+  });
+
+  it('should allow login for existing user and authenticate', async () => {
+    await User.create({
+      username: 'olduser',
+      email: 'olduser@example.com',
+      password: await bcrypt.hash('password', 10),
+      role: 'user',
+    });
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({
+        email: 'olduser@example.com',
+        password: 'password',
+      });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.message).toBe('Login successful');
+    expect(res.body.user.email).toBe('olduser@example.com');
+    expect(res.body.user.username).toBe('olduser');
+
+    // Verify session authentication
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', res.headers['set-cookie']);
+    expect(meRes.statusCode).toBe(200);
+    expect(meRes.body.username).toBe('olduser');
+  });
+});
 
 ================
 File: .gitignore
@@ -164,34 +271,43 @@ const isAdmin = (req, res, next) => {
 module.exports = { isAuthenticated, isAdmin };
 
 ================
-File: backend/src/models/Answer.js
-================
-const mongoose = require('mongoose');
-
-const answerSchema = new mongoose.Schema({
-  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  content: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
-  xpEarned: { type: Number, default: 0 },
-  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' }
-});
-
-module.exports = mongoose.model('Answer', answerSchema);
-
-================
 File: backend/src/models/User.js
 ================
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  username: { type: String, unique: true, required: true },
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  xp: { type: Number, default: 0 },
-  wallet: { type: Number, default: 0 } // INR equivalent
+  username: {
+    type: String,
+    unique: true,
+    trim: true,
+    minlength: [3, 'Username must be at least 3 characters long'],
+    maxlength: [30, 'Username cannot exceed 30 characters'],
+    required: [function () { return this.isNew; }, 'Username is required for new users'],
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  },
+  xp: {
+    type: Number,
+    default: 0,
+  },
+  wallet: {
+    type: Number,
+    default: 0,
+  },
 });
 
 userSchema.pre('save', async function (next) {
@@ -202,66 +318,6 @@ userSchema.pre('save', async function (next) {
 });
 
 module.exports = mongoose.model('User', userSchema);
-
-================
-File: backend/src/routes/answers.js
-================
-const express = require('express');
-const Answer = require('../models/Answer');
-const User = require('../models/User');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
-const router = express.Router();
-
-// Submit answer (users)
-router.post('/', isAuthenticated, async (req, res) => {
-  try {
-    const { questionId, content } = req.body;
-    const answer = new Answer({
-      questionId,
-      userId: req.user.id,
-      content
-    });
-    await answer.save();
-    res.status(201).json(answer);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Verify answer (admin only)
-router.put('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const { status, xpEarned } = req.body;
-    const answer = await Answer.findById(req.params.id);
-    if (!answer) return res.status(404).json({ message: 'Answer not found' });
-    answer.status = status;
-    answer.xpEarned = xpEarned || 0;
-    answer.verificationMethod = 'manual';
-    await answer.save();
-
-    if (status === 'verified') {
-      const user = await User.findById(answer.userId);
-      user.xp += xpEarned;
-      user.wallet += xpEarned / 10; // 10 XP = 1 INR
-      await user.save();
-    }
-    res.json(answer);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Get user answers
-router.get('/user', isAuthenticated, async (req, res) => {
-  try {
-    const answers = await Answer.find({ userId: req.user.id }).populate('questionId');
-    res.json(answers);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-module.exports = router;
 
 ================
 File: backend/src/server.js
@@ -562,17 +618,21 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/auth/me', { withCredentials: true });
-        setUser(res.data.user);
-      } catch (err) {
-        setUser(null);
-      } finally {
-        setLoading(false);
+  const fetchUser = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/auth/me', { withCredentials: true });
+      setUser(res.data);
+    } catch (err) {
+      console.error('Error fetching user:', err.response?.status, err.response?.data);
+      if (err.response?.status !== 401) {
+        setUser(null); // Only clear user on non-401 errors
       }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchUser();
   }, []);
 
@@ -588,15 +648,20 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await axios.get('http://localhost:5000/api/auth/logout', { withCredentials: true });
+      await axios.post('http://localhost:5000/api/auth/logout', {}, { withCredentials: true });
       setUser(null);
     } catch (err) {
-      console.error(err);
+      console.error('Error logging out:', err);
     }
   };
 
+  const refreshUser = async () => {
+    setLoading(true);
+    await fetchUser();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, setUser, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -650,6 +715,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -660,12 +726,26 @@ const answerRoutes = require('./routes/answers');
 const app = express();
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    collectionName: 'sessions'
+  }),
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -683,6 +763,23 @@ app.use('/api/answers', answerRoutes);
 app.get('/', (req, res) => res.send('CyberQA API'));
 
 module.exports = app;
+
+================
+File: backend/src/models/Answer.js
+================
+const mongoose = require('mongoose');
+
+const answerSchema = new mongoose.Schema({
+  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+  xpEarned: { type: Number, default: 0 },
+  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' },
+  adminComments: { type: String, default: '' }
+});
+
+module.exports = mongoose.model('Answer', answerSchema);
 
 ================
 File: backend/src/models/Question.js
@@ -780,50 +877,6 @@ describe('GET /', () => {
 afterAll(async () => {
   await mongoose.connection.close();
 });
-
-================
-File: docs/admin-guide.md
-================
-# CyberQA Admin Guide
-
-## Access Dashboard
-- Log in with an admin account (set `role: 'admin'` in MongoDB).
-- Visit `/admin` to access the modern admin dashboard.
-
-## Manage Questions
-- Toggle the "Question Form" to add or edit questions in a clean form.
-- Fill in fields (question text, type, difficulty, etc.) and submit.
-- Edit or delete questions in the responsive table below (click "Edit" or "Delete").
-
-## Verify Answers
-- Toggle the "Pending Answers" section to view pending answers.
-- Enter custom XP values and click "Verify" (green) or "Reject" (red).
-- Animated alerts confirm actions.
-
-================
-File: docs/user-guide.md
-================
-# CyberQA User Guide
-
-## Register
-- Visit `/register` and fill in your username, email, and password in the modern form.
-- Submit to register and redirect to `/login`.
-
-## Login
-- Visit `/login` and enter your email and password in the sleek, centered form.
-- Redirects to `/questions` on successful login.
-
-## Browse and Submit Questions
-- Navigate to `/questions` to view questions in clean, animated cards.
-- Use the filter form (type, difficulty, tags) at the top to refine the list.
-- Submit answers using the textarea below each question.
-- See success (green) or error (red) alerts after submission.
-
-## Profile
-- Visit `/profile` to view your username, email, XP, wallet, and submitted answers in a modern card and table layout.
-
-## Logout
-- Click "Logout" in the sticky navbar to end your session.
 
 ================
 File: frontend/src/App.css
@@ -1015,85 +1068,6 @@ code {
 }
 
 ================
-File: frontend/src/pages/Profile.js
-================
-import React, { useContext, useEffect, useState } from 'react';
-import { Container, Card, Table } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
-
-function Profile() {
-  const { user } = useContext(AuthContext);
-  const [answers, setAnswers] = useState([]);
-
-  useEffect(() => {
-    const fetchAnswers = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
-        setAnswers(res.data);
-      } catch (err) {
-        alert(err.response?.data?.message || 'Failed to fetch answers');
-      }
-    };
-    if (user) fetchAnswers();
-  }, [user]);
-
-  return (
-    <Container className="my-5">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h2 className="mb-4">Profile</h2>
-        {user && (
-          <Card className="mb-4">
-            <Card.Body>
-              <Card.Title>{user.username}</Card.Title>
-              <Card.Text>
-                <strong>Email:</strong> {user.email}<br />
-                <strong>XP:</strong> {user.xp}<br />
-                <strong>Wallet:</strong> ₹{user.wallet}<br />
-                <strong>Role:</strong> {user.role}
-              </Card.Text>
-            </Card.Body>
-          </Card>
-        )}
-        <h3 className="mb-3">Your Answers</h3>
-        <Table striped bordered hover responsive>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Status</th>
-              <th>XP Earned</th>
-            </tr>
-          </thead>
-          <tbody>
-            {answers.map((answer) => (
-              <motion.tr
-                key={answer._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(answer) }}
-              >
-                <td>{answer.questionId?.questionText || 'N/A'}</td>
-                <td>{answer.content}</td>
-                <td>{answer.status}</td>
-                <td>{answer.xpEarned}</td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </Table>
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Profile;
-
-================
 File: backend/package.json
 ================
 {
@@ -1102,8 +1076,8 @@ File: backend/package.json
   "description": "",
   "main": "index.js",
   "scripts": {
-  "start": "node src/server.js",
-  "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "test": "jest"
   },
   "keywords": [],
@@ -1112,6 +1086,8 @@ File: backend/package.json
   "type": "commonjs",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "connect-mongo": "^5.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
@@ -1131,53 +1107,236 @@ File: backend/package.json
 File: backend/src/routes/auth.js
 ================
 const express = require('express');
-const passport = require('passport');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const { isAuthenticated } = require('../middleware/auth');
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+router.post('/register', async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
+    console.log('Registration request:', { username, email }); // Debug log
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Username, email, and password are required' });
+    }
+
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) return res.status(400).json({ message: 'User already exists' });
+    if (existingUser) {
+      return res.status(400).json({
+        message: existingUser.email === email ? 'Email already exists' : 'Username already exists',
+      });
+    }
 
-    const user = new User({ username, email, password, role: 'user' });
+    const user = new User({ username, email, password });
     await user.save();
-    res.status(201).json({ message: 'User registered' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-router.post('/login', passport.authenticate('local'), (req, res) => {
-  const { id, username, email, role, xp, wallet } = req.user;
-  res.json({ user: { id, username, email, role, xp, wallet } });
-});
-
-
-router.get('/logout', (req, res) => {
-  req.logout(() => res.json({ message: 'Logged out' }));
-});
-
-router.get('/me', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json({
-      user: {
-        id: req.user.id,
-        username: req.user.username,
-        email: req.user.email,
-        role: req.user.role,
-        xp: req.user.xp,
-        wallet: req.user.wallet
+    
+    // Initialize Passport session
+    req.login(user, (err) => {
+      if (err) {
+        console.error('Error logging in user after registration:', err);
+        return next(err);
       }
+      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username };
+      console.log('User registered:', req.session.user); // Debug log
+      return res.status(201).json({ message: 'User registered successfully', user: req.session.user });
     });
-  } else {
-    res.status(401).json({ message: 'Not authenticated' });
+  } catch (err) {
+    console.error('Error registering user:', err);
+    return res.status(500).json({ message: 'Server error during registration' });
   }
 });
 
+router.post('/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // Initialize Passport session
+    req.login(user, (err) => {
+      if (err) {
+        console.error('Error logging in user:', err);
+        return next(err);
+      }
+      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username || '' };
+      res.json({ message: 'Login successful', user: req.session.user });
+    });
+  } catch (err) {
+    console.error('Error logging in:', err);
+    res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+router.get('/me', isAuthenticated, (req, res) => {
+  res.json(req.session.user);
+});
+
+router.post('/logout', isAuthenticated, (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('Error logging out:', err);
+      return res.status(500).json({ message: 'Logout failed' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ message: 'Logout failed' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ message: 'Logout successful' });
+    });
+  });
+});
 
 module.exports = router;
+
+================
+File: backend/tests/answers.test.js
+================
+const request = require('supertest');
+const app = require('../src/app');
+const mongoose = require('mongoose');
+const Answer = require('../src/models/Answer');
+const User = require('../src/models/User');
+const Question = require('../src/models/Question');
+
+describe('Answers API', () => {
+  let user, admin, question;
+
+  beforeAll(async () => {
+    await mongoose.connect(process.env.MONGO_URI);
+    user = await User.create({
+      username: 'testuser',
+      email: 'user@test.com',
+      password: 'password',
+      role: 'user',
+    });
+    admin = await User.create({
+      username: 'adminuser',
+      email: 'admin@test.com',
+      password: 'password',
+      role: 'admin',
+    });
+    question = await Question.create({
+      questionText: 'Test question',
+      type: 'numeric',
+      difficulty: 'easy',
+    });
+  });
+
+  afterAll(async () => {
+    await Answer.deleteMany({});
+    await User.deleteMany({});
+    await Question.deleteMany({});
+    await mongoose.connection.close();
+  });
+
+  it('should allow admin to suggest changes to an answer', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: user._id,
+      content: 'Test answer',
+      status: 'pending',
+    });
+
+    const res = await request(app)
+      .put(`/api/answers/${answer._id}/suggest`)
+      .set('Cookie', ['connect.sid=admin-session'])
+      .send({ adminComments: 'Please clarify your explanation' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.status).toBe('rejected');
+    expect(res.body.adminComments).toBe('Please clarify your explanation');
+
+    const updatedAnswer = await Answer.findById(answer._id);
+    expect(updatedAnswer.status).toBe('rejected');
+    expect(updatedAnswer.adminComments).toBe('Please clarify your explanation');
+  });
+
+  it('should allow admin to fetch all pending answers with username', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: user._id,
+      content: 'Test answer',
+      status: 'pending',
+    });
+
+    const res = await request(app)
+      .get('/api/answers/pending')
+      .set('Cookie', ['connect.sid=admin-session']);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBeInstanceOf(Array);
+    expect(res.body.some((a) => a._id === answer._id.toString())).toBe(true);
+    expect(res.body[0].questionId.questionText).toBe('Test question');
+    expect(res.body[0].userId.username).toBe('testuser');
+  });
+
+  it('should allow user to resubmit an answer and reflect in user answers', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: user._id,
+      content: '40',
+      status: 'rejected',
+      adminComments: 'answer is wrong',
+    });
+
+    const resubmitRes = await request(app)
+      .put(`/api/answers/${answer._id}/resubmit`)
+      .set('Cookie', ['connect.sid=user-session'])
+      .send({ content: '42' });
+
+    expect(resubmitRes.statusCode).toBe(200);
+    expect(resubmitRes.body.content).toBe('42');
+    expect(resubmitRes.body.status).toBe('pending');
+    expect(resubmitRes.body.adminComments).toBe('');
+
+    const updatedAnswer = await Answer.findById(answer._id);
+    expect(updatedAnswer.content).toBe('42');
+    expect(updatedAnswer.status).toBe('pending');
+    expect(updatedAnswer.adminComments).toBe('');
+
+    const userAnswersRes = await request(app)
+      .get('/api/answers/user')
+      .set('Cookie', ['connect.sid=user-session']);
+
+    expect(userAnswersRes.statusCode).toBe(200);
+    expect(userAnswersRes.body).toBeInstanceOf(Array);
+    expect(userAnswersRes.body.some((a) => a._id === answer._id.toString())).toBe(true);
+    expect(userAnswersRes.body.find((a) => a._id === answer._id.toString()).content).toBe('42');
+    expect(userAnswersRes.body.find((a) => a._id === answer._id.toString()).status).toBe('pending');
+  });
+});
+
+================
+File: docs/admin-guide.md
+================
+# CyberQA Admin Guide
+
+## Access Dashboard
+- Log in with an admin account (set `role: 'admin'` in MongoDB).
+- Visit `/admin` to access the modern admin dashboard.
+
+## Manage Questions
+- Toggle the "Question Form" to add or edit questions in a clean form.
+- Fill in fields (question text, type, difficulty, etc.) and submit.
+- Edit or delete questions in the responsive table below (click "Edit" or "Delete").
+
+## Verify Answers
+- Toggle the "Pending Answers" section to view pending answers.
+- Enter custom XP values and click "Verify" (green) or "Reject" (red).
+- Animated alerts confirm actions.
+  
+### Verify Answers
+- Navigate to `/admin` to view all pending answers in the “Pending Answers” table.
+- The table displays the submitter’s username, question, answer, status, XP input, and comments.
+- For each answer, you can:
+  - Enter XP and click “Verify” to approve.
+  - Click “Reject” to decline without comments.
+  - Enter suggestions in the “Comments” field and click “Suggest Changes” to request resubmission.
 
 ================
 File: frontend/src/App.js
@@ -1236,57 +1395,6 @@ root.render(
 );
 
 ================
-File: frontend/src/pages/AnswerForm.js
-================
-import React, { useState } from 'react';
-import { Form, Button } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-
-function AnswerForm({ questionId, setMessage, setAlertVariant }) {
-  const [content, setContent] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('http://localhost:5000/api/answers', { questionId, content }, { withCredentials: true });
-      setMessage('Answer submitted successfully');
-      setAlertVariant('success');
-      setContent('');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Submission failed');
-      setAlertVariant('danger');
-    }
-  };
-
-  return (
-    <Form onSubmit={handleSubmit}>
-      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
-        <Form.Label>Answer</Form.Label>
-        <Form.Control
-          as="textarea"
-          rows={4}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-          placeholder="Enter your answer"
-        />
-      </Form.Group>
-      <motion.div
-        whileHover={{ scale: 1.05 }}
-        transition={{ type: 'spring', stiffness: 300 }}
-      >
-        <Button variant="primary" type="submit">
-          Submit Answer
-        </Button>
-      </motion.div>
-    </Form>
-  );
-}
-
-export default AnswerForm;
-
-================
 File: frontend/src/pages/Home.js
 ================
 import React from 'react';
@@ -1343,13 +1451,14 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const { login } = useContext(AuthContext);
+  const { login, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await login(email, password);
+      await refreshUser(); // Refresh user state after login
       navigate('/questions');
     } catch (err) {
       setMessage(err);
@@ -1415,94 +1524,254 @@ export default Login;
 ================
 File: frontend/src/pages/Register.js
 ================
-import React, { useState } from 'react';
-import { Container, Form, Button, Alert } from 'react-bootstrap';
+import React, { useState, useContext } from 'react';
+import { Form, Button, Card, Alert } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 function Register() {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+  });
   const [message, setMessage] = useState('');
+  const [alertVariant, setAlertVariant] = useState('');
+  const { setUser, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
-      navigate('/login');
+      const res = await axios.post('http://localhost:5000/api/auth/register', formData, {
+        withCredentials: true,
+      });
+      console.log('Registration response:', res.data);
+      setMessage(res.data.message);
+      setAlertVariant('success');
+      setUser(res.data.user);
+      await refreshUser(); // Refresh user state after registration
+      setTimeout(() => navigate('/'), 1000);
     } catch (err) {
+      console.error('Error registering:', err.response?.data || err.message);
       setMessage(err.response?.data?.message || 'Registration failed');
+      setAlertVariant('danger');
     }
   };
 
   return (
-    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="card p-4"
-        style={{ maxWidth: '400px', width: '100%' }}
-      >
-        <h2 className="text-center mb-4">Register</h2>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Alert variant="danger">{message}</Alert>
-          </motion.div>
-        )}
-        <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3" controlId="username">
-            <Form.Label className="form-label">Username</Form.Label>
-            <Form.Control
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              placeholder="Enter your username"
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="email">
-            <Form.Label className="form-label">Email</Form.Label>
-            <Form.Control
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="Enter your email"
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="password">
-            <Form.Label className="form-label">Password</Form.Label>
-            <Form.Control
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Enter your password"
-            />
-          </Form.Group>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            transition={{ type: 'spring', stiffness: 300 }}
-          >
-            <Button variant="primary" type="submit" className="w-100">
-              Register
-            </Button>
-          </motion.div>
-        </Form>
-      </motion.div>
-    </Container>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Card className="mx-auto my-5" style={{ maxWidth: '400px' }}>
+        <Card.Body>
+          <Card.Title>Register</Card.Title>
+          {message && (
+            <Alert variant={alertVariant}>
+              {message}
+            </Alert>
+          )}
+          <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3" controlId="username">
+              <Form.Label>Username</Form.Label>
+              <Form.Control
+                type="text"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                required
+                placeholder="Enter username"
+              />
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="email">
+              <Form.Label>Email</Form.Label>
+              <Form.Control
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+                placeholder="Enter email"
+              />
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="password">
+              <Form.Label>Password</Form.Label>
+              <Form.Control
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                required
+                placeholder="Enter password"
+              />
+            </Form.Group>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: 'spring', stiffness: 300 }}
+            >
+              <Button variant="primary" type="submit">
+                Register
+              </Button>
+            </motion.div>
+          </Form>
+        </Card.Body>
+      </Card>
+    </motion.div>
   );
 }
 
 export default Register;
+
+================
+File: backend/src/routes/answers.js
+================
+const express = require('express');
+const Answer = require('../models/Answer');
+const User = require('../models/User');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const router = express.Router();
+
+// Submit answer (users)
+router.post('/', isAuthenticated, async (req, res) => {
+  try {
+    const { questionId, content } = req.body;
+    if (!questionId || !content) {
+      return res.status(400).json({ message: 'questionId and content are required' });
+    }
+    const answer = new Answer({
+      questionId,
+      userId: req.user.id,
+      content,
+    });
+    await answer.save();
+    res.status(201).json(answer);
+  } catch (err) {
+    console.error('Error saving answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Verify answer (admin only)
+router.put('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { status, xpEarned } = req.body;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    answer.status = status;
+    answer.xpEarned = xpEarned || 0;
+    answer.verificationMethod = 'manual';
+    await answer.save();
+
+    if (status === 'verified') {
+      const user = await User.findById(answer.userId);
+      user.xp += xpEarned;
+      user.wallet += xpEarned / 10; // 10 XP = 1 INR
+      await user.save();
+    }
+    res.json(answer);
+  } catch (err) {
+    console.error('Error verifying answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Suggest changes for answer (admin only)
+router.put('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { adminComments } = req.body;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    answer.status = 'rejected';
+    answer.adminComments = adminComments || '';
+    await answer.save();
+    res.json(answer);
+  } catch (err) {
+    console.error('Error suggesting changes:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Resubmit answer (users, only for their own answers)
+router.put('/:id/resubmit', isAuthenticated, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ message: 'content is required' });
+    }
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    if (answer.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized to resubmit this answer' });
+    }
+    answer.content = content;
+    answer.status = 'pending';
+    answer.adminComments = '';
+    await answer.save();
+    res.json(answer);
+  } catch (err) {
+    console.error('Error resubmitting answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get all pending answers (admin only)
+router.get('/pending', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const answers = await Answer.find({ status: 'pending' })
+      .populate('questionId', 'questionText')
+      .populate('userId', 'username');
+    res.json(answers);
+  } catch (err) {
+    console.error('Error fetching pending answers:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get user answers (for user profile)
+router.get('/user', isAuthenticated, async (req, res) => {
+  try {
+    const answers = await Answer.find({ userId: req.user.id }).populate('questionId', 'questionText');
+    res.json(answers);
+  } catch (err) {
+    console.error('Error fetching user answers:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
+
+================
+File: docs/user-guide.md
+================
+# CyberQA User Guide
+
+### Register
+- Navigate to `/register` to create an account.
+- Enter a unique username (3–30 characters), email, and password.
+- After successful registration, you’ll be redirected to the homepage.
+
+## Login
+- Visit `/login` and enter your email and password in the sleek, centered form.
+- Redirects to `/questions` on successful login.
+
+## Browse and Submit Questions
+- Navigate to `/questions` to view questions in clean, animated cards.
+- Use the filter form (type, difficulty, tags) at the top to refine the list.
+- Submit answers using the textarea below each question.
+- See success (green) or error (red) alerts after submission.
+
+## Profile
+- Visit `/profile` to view your username, email, XP, wallet, and submitted answers in a modern card and table layout.
+
+## Logout
+- Click "Logout" in the sticky navbar to end your session.
+
+## Resubmit Answers
+- If an admin suggests changes, a notification appears in your `/profile` page.
+- Review the admin’s comments in the “Your Answers” table.
+- Click “Resubmit” to edit your original answer, which updates the existing entry.
+- After resubmission, the page refreshes to show the updated answer.
 
 ================
 File: frontend/package.json
@@ -1558,6 +1827,346 @@ File: frontend/package.json
 }
 
 ================
+File: frontend/src/pages/Profile.js
+================
+import React, { useContext, useEffect, useState } from 'react';
+import { Container, Card, Table, Alert, Badge, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
+import AnswerForm from './AnswerForm';
+
+function Profile() {
+  const { user } = useContext(AuthContext);
+  const [answers, setAnswers] = useState([]);
+  const [resubmitAnswerId, setResubmitAnswerId] = useState(null);
+
+  const fetchAnswers = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
+      setAnswers(res.data);
+    } catch (err) {
+      console.error('Error fetching answers:', err);
+      alert(err.response?.data?.message || 'Failed to fetch answers');
+    }
+  };
+
+  useEffect(() => {
+    if (user) fetchAnswers();
+  }, [user]);
+
+  const handleResubmit = (answerId) => {
+    setResubmitAnswerId(answerId);
+  };
+
+  return (
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Profile</h2>
+        {user && (
+          <Card className="mb-4">
+            <Card.Body>
+              <Card.Title>{user.username}</Card.Title>
+              <Card.Text>
+                <strong>Email:</strong> {user.email}<br />
+                <strong>XP:</strong> {user.xp}<br />
+                <strong>Wallet:</strong> ₹{user.wallet}<br />
+                <strong>Role:</strong> {user.role}
+              </Card.Text>
+            </Card.Body>
+          </Card>
+        )}
+        <h3 className="mb-3">Your Answers</h3>
+        {answers.some((a) => a.status === 'rejected' && a.adminComments) && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant="warning">
+              <Badge bg="warning" text="dark" className="me-2">
+                Action Required
+              </Badge>
+              You have answers with suggested changes. Review and resubmit below.
+            </Alert>
+          </motion.div>
+        )}
+        <Table striped bordered hover responsive>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Status</th>
+              <th>XP Earned</th>
+              <th>Admin Comments</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {answers.map((answer) => (
+              <motion.tr
+                key={answer._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(answer) }}
+              >
+                <td>{answer.questionId?.questionText || 'N/A'}</td>
+                <td>{answer.content}</td>
+                <td>{answer.status}</td>
+                <td>{answer.xpEarned}</td>
+                <td>{answer.adminComments || 'None'}</td>
+                <td>
+                  {answer.status === 'rejected' && answer.adminComments && (
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleResubmit(answer._id)}
+                      >
+                        Resubmit
+                      </Button>
+                    </motion.div>
+                  )}
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </Table>
+        {resubmitAnswerId && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="mt-4">
+              <Card.Body>
+                <Card.Title>Resubmit Answer</Card.Title>
+                <AnswerForm
+                  questionId={answers.find((a) => a._id === resubmitAnswerId)?.questionId?._id}
+                  answerId={resubmitAnswerId}
+                  setMessage={(msg) => alert(msg)}
+                  setAlertVariant={(variant) => console.log(variant)}
+                  initialContent={answers.find((a) => a._id === resubmitAnswerId)?.content}
+                  onSubmitSuccess={() => {
+                    fetchAnswers(); // Refresh answers from server
+                    setResubmitAnswerId(null);
+                  }}
+                />
+              </Card.Body>
+            </Card>
+          </motion.div>
+        )}
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Profile;
+
+================
+File: frontend/src/pages/AnswerForm.js
+================
+import React, { useState } from 'react';
+import { Form, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+
+function AnswerForm({ questionId, answerId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
+  const [content, setContent] = useState(initialContent);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      let res;
+      if (answerId) {
+        // Resubmission
+        res = await axios.put(
+          `http://localhost:5000/api/answers/${answerId}/resubmit`,
+          { content },
+          { withCredentials: true }
+        );
+        setMessage('Answer resubmitted successfully');
+        setAlertVariant('success');
+      } else {
+        // New submission
+        res = await axios.post(
+          'http://localhost:5000/api/answers',
+          { questionId, content },
+          { withCredentials: true }
+        );
+        setMessage('Answer submitted successfully');
+        setAlertVariant('success');
+      }
+      setContent('');
+      if (onSubmitSuccess) onSubmitSuccess(res.data);
+    } catch (err) {
+      console.error('Error submitting answer:', err);
+      setMessage(err.response?.data?.message || 'Submission failed');
+      setAlertVariant('danger');
+    }
+  };
+
+  return (
+    <Form onSubmit={handleSubmit}>
+      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
+        <Form.Label>Answer</Form.Label>
+        <Form.Control
+          as="textarea"
+          rows={4}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+          placeholder="Enter your answer"
+        />
+      </Form.Group>
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: 'spring', stiffness: 300 }}
+      >
+        <Button variant="primary" type="submit">
+          {answerId ? 'Resubmit Answer' : 'Submit Answer'}
+        </Button>
+      </motion.div>
+    </Form>
+  );
+}
+
+export default AnswerForm;
+
+================
+File: frontend/src/pages/Questions.js
+================
+import React, { useState, useEffect } from 'react';
+import { Container, Form, Card, Alert } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import AnswerForm from './AnswerForm';
+
+function Questions() {
+  const [questions, setQuestions] = useState([]);
+  const [filters, setFilters] = useState({ type: '', difficulty: '', tags: '' });
+  const [message, setMessage] = useState('');
+  const [alertVariant, setAlertVariant] = useState('');
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [filters]);
+
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/questions', {
+          params: debouncedFilters,
+          withCredentials: true
+        });
+        setQuestions(res.data);
+        setMessage('');
+      } catch (err) {
+        setMessage(err.response?.data?.message || 'Failed to fetch questions');
+        setAlertVariant('danger');
+      }
+    };
+    fetchQuestions();
+  }, [debouncedFilters]);
+
+  return (
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2 className="mb-4">Questions</h2>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant={alertVariant}>{message}</Alert>
+          </motion.div>
+        )}
+        <Card className="mb-4 p-4">
+          <Form>
+            <Form.Group className="mb-3" controlId="type">
+              <Form.Label>Type</Form.Label>
+              <Form.Select
+                name="type"
+                value={filters.type}
+                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="numeric">Numeric</option>
+                <option value="ciphertext">Ciphertext</option>
+                <option value="code">Code</option>
+                <option value="formula">Formula</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="difficulty">
+              <Form.Label>Difficulty</Form.Label>
+              <Form.Select
+                name="difficulty"
+                value={filters.difficulty}
+                onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
+              >
+                <option value="">All</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </Form.Select>
+            </Form.Group>
+            <Form.Group className="mb-3" controlId="tags">
+              <Form.Label>Tags (comma-separated)</Form.Label>
+              <Form.Control
+                name="tags"
+                value={filters.tags}
+                onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
+                placeholder="Enter tags"
+              />
+            </Form.Group>
+          </Form>
+        </Card>
+        {questions.map((q) => (
+          <motion.div
+            key={q._id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
+          >
+            <Card className="mb-3">
+              <Card.Body>
+                <Card.Title>{q.questionText}</Card.Title>
+                <Card.Text className="text-muted">
+                  Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(', ')}
+                </Card.Text>
+                <AnswerForm
+                  questionId={q._id}
+                  setMessage={setMessage}
+                  setAlertVariant={setAlertVariant}
+                />
+              </Card.Body>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Questions;
+
+================
 File: frontend/src/pages/AdminDashboard.js
 ================
 import React, { useState, useEffect } from "react";
@@ -1589,6 +2198,7 @@ function AdminDashboard() {
   });
   const [editQuestion, setEditQuestion] = useState(null);
   const [xpInputs, setXpInputs] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
   const [openQuestionForm, setOpenQuestionForm] = useState(true);
   const [openQuestions, setOpenQuestions] = useState(true);
   const [openAnswers, setOpenAnswers] = useState(true);
@@ -1600,13 +2210,14 @@ function AdminDashboard() {
           axios.get("http://localhost:5000/api/questions", {
             withCredentials: true,
           }),
-          axios.get("http://localhost:5000/api/answers/user", {
+          axios.get("http://localhost:5000/api/answers/pending", {
             withCredentials: true,
           }),
         ]);
         setQuestions(qRes.data);
         setAnswers(aRes.data);
       } catch (err) {
+        console.error('Error fetching data:', err);
         alert(err.response?.data?.message || "Failed to fetch data");
       }
     };
@@ -1652,6 +2263,7 @@ function AdminDashboard() {
       });
       alert(editQuestion ? "Question updated" : "Question added");
     } catch (err) {
+      console.error('Error saving question:', err);
       alert(err.response?.data?.message || "Failed to save question");
     }
   };
@@ -1679,6 +2291,7 @@ function AdminDashboard() {
       setQuestions(questions.filter((q) => q._id !== id));
       alert("Question deleted");
     } catch (err) {
+      console.error('Error deleting question:', err);
       alert(err.response?.data?.message || "Failed to delete question");
     }
   };
@@ -1692,13 +2305,34 @@ function AdminDashboard() {
         { withCredentials: true }
       );
       setAnswers(
-        answers.map((a) =>
-          a._id === answerId ? { ...a, status, xpEarned } : a
-        )
+        answers.filter((a) => a._id !== answerId) // Remove from table
       );
       alert("Answer verified");
     } catch (err) {
+      console.error('Error verifying answer:', err);
       alert(err.response?.data?.message || "Verification failed");
+    }
+  };
+
+  const handleSuggestChanges = async (answerId) => {
+    try {
+      const adminComments = commentInputs[answerId] || '';
+      await axios.put(
+        `http://localhost:5000/api/answers/${answerId}/suggest`,
+        { adminComments },
+        { withCredentials: true }
+      );
+      setAnswers(
+        answers.filter((a) => a._id !== answerId) // Remove from table
+      );
+      setCommentInputs((prev) => {
+        const { [answerId]: _, ...rest } = prev;
+        return rest;
+      });
+      alert("Changes suggested");
+    } catch (err) {
+      console.error('Error suggesting changes:', err);
+      alert(err.response?.data?.message || "Failed to suggest changes");
     }
   };
 
@@ -1862,7 +2496,6 @@ function AdminDashboard() {
                   <th>Type</th>
                   <th>Difficulty</th>
                   <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
-
                 </tr>
               </thead>
               <tbody>
@@ -1921,71 +2554,105 @@ function AdminDashboard() {
             <Table striped bordered hover responsive>
               <thead>
                 <tr>
+                  <th>Username</th>
                   <th>Question</th>
                   <th>Answer</th>
                   <th>Status</th>
                   <th>XP</th>
+                  <th>Comments</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {answers
-                  .filter((a) => a.status === "pending")
-                  .map((a) => (
-                    <motion.tr
-                      key={a._id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.3,
-                        delay: 0.1 * answers.indexOf(a),
-                      }}
-                    >
-                      <td>{a.questionId?.questionText || "N/A"}</td>
-                      <td>{a.content}</td>
-                      <td>{a.status}</td>
-                      <td>
-                        <InputGroup>
-                          <Form.Control
-                            type="number"
-                            value={xpInputs[a._id] || ""}
-                            onChange={(e) =>
-                              setXpInputs({
-                                ...xpInputs,
-                                [a._id]: parseInt(e.target.value) || 0,
-                              })
-                            }
-                            placeholder="Enter XP"
-                          />
-                        </InputGroup>
-                      </td>
-                      <td>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
-                          <Button
-                            variant="success"
-                            onClick={() => handleVerify(a._id, "verified")}
-                            className="me-2"
+                {answers.map((a) => (
+                  <motion.tr
+                    key={a._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: 0.1 * answers.indexOf(a),
+                    }}
+                  >
+                    <td>{a.userId?.username || "N/A"}</td>
+                    <td>{a.questionId?.questionText || "N/A"}</td>
+                    <td>{a.content}</td>
+                    <td>{a.status}</td>
+                    <td>
+                      <InputGroup>
+                        <Form.Control
+                          type="number"
+                          value={xpInputs[a._id] || ""}
+                          onChange={(e) =>
+                            setXpInputs({
+                              ...xpInputs,
+                              [a._id]: parseInt(e.target.value) || 0,
+                            })
+                          }
+                          placeholder="Enter XP"
+                          disabled={a.status !== "pending"}
+                        />
+                      </InputGroup>
+                    </td>
+                    <td>
+                      <InputGroup>
+                        <Form.Control
+                          type="text"
+                          value={commentInputs[a._id] || ""}
+                          onChange={(e) =>
+                            setCommentInputs({
+                              ...commentInputs,
+                              [a._id]: e.target.value,
+                            })
+                          }
+                          placeholder="Enter suggestions"
+                          disabled={a.status !== "pending"}
+                        />
+                      </InputGroup>
+                    </td>
+                    <td>
+                      {a.status === "pending" && (
+                        <>
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
                           >
-                            Verify
-                          </Button>
-                        </motion.div>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          transition={{ type: "spring", stiffness: 300 }}
-                        >
-                          <Button
-                            variant="danger"
-                            onClick={() => handleVerify(a._id, "rejected")}
+                            <Button
+                              variant="success"
+                              onClick={() => handleVerify(a._id, "verified")}
+                              className="me-2"
+                            >
+                              Verify
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
                           >
-                            Reject
-                          </Button>
-                        </motion.div>
-                      </td>
-                    </motion.tr>
-                  ))}
+                            <Button
+                              variant="danger"
+                              onClick={() => handleVerify(a._id, "rejected")}
+                              className="me-2"
+                            >
+                              Reject
+                            </Button>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.05 }}
+                            transition={{ type: "spring", stiffness: 300 }}
+                          >
+                            <Button
+                              variant="warning"
+                              onClick={() => handleSuggestChanges(a._id)}
+                            >
+                              Suggest Changes
+                            </Button>
+                          </motion.div>
+                        </>
+                      )}
+                    </td>
+                  </motion.tr>
+                ))}
               </tbody>
             </Table>
           </div>
@@ -1996,132 +2663,6 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
-
-================
-File: frontend/src/pages/Questions.js
-================
-import React, { useState, useEffect } from 'react';
-import { Container, Form, Card, Alert } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import AnswerForm from './AnswerForm';
-
-function Questions() {
-  const [questions, setQuestions] = useState([]);
-  const [filters, setFilters] = useState({ type: '', difficulty: '', tags: '' });
-  const [message, setMessage] = useState('');
-  const [alertVariant, setAlertVariant] = useState('');
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [filters]);
-
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/questions', {
-          params: debouncedFilters,
-          withCredentials: true
-        });
-        setQuestions(res.data);
-        setMessage('');
-      } catch (err) {
-        setMessage(err.response?.data?.message || 'Failed to fetch questions');
-        setAlertVariant('danger');
-      }
-    };
-    fetchQuestions();
-  }, [debouncedFilters]);
-
-  return (
-    <Container className="my-5">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h2 className="mb-4">Questions</h2>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Alert variant={alertVariant}>{message}</Alert>
-          </motion.div>
-        )}
-        <Card className="mb-4 p-4">
-          <Form>
-            <Form.Group className="mb-3" controlId="type">
-              <Form.Label>Type</Form.Label>
-              <Form.Select
-                name="type"
-                value={filters.type}
-                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              >
-                <option value="">All</option>
-                <option value="numeric">Numeric</option>
-                <option value="ciphertext">Ciphertext</option>
-                <option value="code">Code</option>
-                <option value="formula">Formula</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="difficulty">
-              <Form.Label>Difficulty</Form.Label>
-              <Form.Select
-                name="difficulty"
-                value={filters.difficulty}
-                onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
-              >
-                <option value="">All</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="tags">
-              <Form.Label>Tags (comma-separated)</Form.Label>
-              <Form.Control
-                name="tags"
-                value={filters.tags}
-                onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
-                placeholder="Enter tags"
-              />
-            </Form.Group>
-          </Form>
-        </Card>
-        {questions.map((q) => (
-          <motion.div
-            key={q._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
-          >
-            <Card className="mb-3">
-              <Card.Body>
-                <Card.Title>{q.questionText}</Card.Title>
-                <Card.Text className="text-muted">
-                  Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(', ')}
-                </Card.Text>
-                <AnswerForm
-                  questionId={q._id}
-                  setMessage={setMessage}
-                  setAlertVariant={setAlertVariant}
-                />
-              </Card.Body>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Questions;
 
 
 
