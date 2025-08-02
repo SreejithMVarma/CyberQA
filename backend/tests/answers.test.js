@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
+const mongoose = require('mongoose');
 const User = require('../src/models/User');
 const Question = require('../src/models/Question');
 const Answer = require('../src/models/Answer');
@@ -7,11 +8,11 @@ const Answer = require('../src/models/Answer');
 let userCookie, adminCookie, question, userId, adminId;
 
 beforeAll(async () => {
+  await mongoose.connect(process.env.MONGO_URI);
   await User.deleteMany({});
   await Answer.deleteMany({});
   await Question.deleteMany({});
 
-  // Generate unique data
   const timestamp = Date.now();
   const userUsername = `testuser_${timestamp}`;
   const adminUsername = `adminuser_${timestamp}`;
@@ -30,40 +31,43 @@ beforeAll(async () => {
     password: 'password',
   };
 
-  // Register users
   await request(app).post('/api/auth/register').send(global.userInfo);
   await request(app).post('/api/auth/register').send(global.adminInfo);
 
-  // Update admin role
   const admin = await User.findOne({ email: global.adminInfo.email });
-  if (!admin) throw new Error('Admin not created');
   admin.role = 'admin';
   await admin.save();
 
   const user = await User.findOne({ email: global.userInfo.email });
-  if (!user) throw new Error('User not created');
-
   userId = user._id;
   adminId = admin._id;
 
-  // Login users
   const userRes = await request(app)
     .post('/api/auth/login')
-    .send({ email: global.userInfo.email, password: global.userInfo.password });
+    .send({ email: global.userInfo.email, password: global.userInfo.password })
+    .expect(200);
 
   const adminRes = await request(app)
     .post('/api/auth/login')
-    .send({ email: global.adminInfo.email, password: global.adminInfo.password });
+    .send({ email: global.adminInfo.email, password: global.adminInfo.password })
+    .expect(200);
 
   userCookie = userRes.headers['set-cookie'];
   adminCookie = adminRes.headers['set-cookie'];
 
-  // Create a test question
+  if (!userCookie || !adminCookie) {
+    console.error('Login cookie missing:', {
+      userCookie,
+      adminCookie,
+    });
+    throw new Error('Login failed — cookies not set');
+  }
+
   question = await Question.create({
     questionText: 'Test question',
+    type: 'numeric',
     tags: ['test'],
     difficulty: 'easy',
-    createdBy: adminId,
   });
 });
 
@@ -71,6 +75,7 @@ afterAll(async () => {
   await User.deleteMany({});
   await Answer.deleteMany({});
   await Question.deleteMany({});
+  await mongoose.connection.close();
 });
 
 describe('Answers API', () => {
@@ -85,10 +90,11 @@ describe('Answers API', () => {
     const res = await request(app)
       .put(`/api/answers/${answer._id}/suggest`)
       .set('Cookie', adminCookie)
-      .send({ suggestedAnswer: 'Updated suggestion', adminComments: 'Looks better' });
+      .send({ adminComments: 'Looks better' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe('Suggested answer updated');
+    expect(res.body.status).toBe('rejected');
+    expect(res.body.adminComments).toBe('Looks better');
   });
 
   test('should allow admin to fetch all pending answers with username', async () => {
@@ -105,9 +111,11 @@ describe('Answers API', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toBeInstanceOf(Array);
-    expect(res.body.some((a) => a._id === answer._id.toString())).toBe(true);
-    expect(res.body[0].questionId.questionText).toBe('Test question');
-    expect(res.body[0].user.username).toBe(global.userInfo.username);
+
+    const found = res.body.find((a) => a._id === answer._id.toString());
+    expect(found).toBeTruthy();
+    expect(found.questionId?.questionText).toBe('Test question');
+    expect(found.userId?.username).toBe(global.userInfo.username);
   });
 
   test('should allow user to resubmit an answer and reflect in user answers', async () => {
@@ -125,10 +133,11 @@ describe('Answers API', () => {
       .send({ content: '42' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe('Answer resubmitted');
+    expect(res.body.status).toBe('pending');
+    expect(res.body.content).toBe('42');
 
     const userAnswers = await request(app)
-      .get('/api/answers/my')
+      .get('/api/answers/user')
       .set('Cookie', userCookie);
 
     expect(userAnswers.statusCode).toBe(200);

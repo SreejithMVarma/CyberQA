@@ -65,6 +65,17 @@ describe('Auth API', () => {
     expect(res.body.message).toBe('Username, email, and password are required');
   });
 
+  it('should prevent registration with invalid username characters', async () => {
+    const res = await request(app).post('/api/auth/register').send({
+      username: 'test@user',
+      email: 'test5@example.com',
+      password: 'password',
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toMatch(/Username can only contain/i); // Match error pattern
+  });
+
   it('should allow login for existing user and authenticate', async () => {
     await request(app).post('/api/auth/register').send({
       username: 'olduser',
