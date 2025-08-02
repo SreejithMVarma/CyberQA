@@ -57,7 +57,7 @@ function Register() {
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 required
-                placeholder="Enter username"
+                placeholder="Enter a username like CyberNinja or john_doe"
               />
             </Form.Group>
             <Form.Group className="mb-3" controlId="email">

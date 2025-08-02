@@ -12,6 +12,11 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ message: 'Username, email, and password are required' });
     }
 
+    // Add regex validation for username
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return res.status(400).json({ message: 'Username can only contain alphanumeric characters, underscores, or hyphens' });
+    }
+
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
       return res.status(400).json({
