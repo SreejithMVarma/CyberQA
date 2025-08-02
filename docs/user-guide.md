@@ -2,7 +2,7 @@
 
 ### Register
 - Navigate to `/register` to create an account.
-- Enter a unique username (3–30 characters), email, and password.
+- Enter a unique username (3–30 characters, alphanumeric, underscores, or hyphens only, e.g., CyberNinja or john_doe), email, and password.
 - After successful registration, you’ll be redirected to the homepage.
 
 ## Login
