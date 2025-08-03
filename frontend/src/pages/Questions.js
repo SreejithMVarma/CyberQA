@@ -1,39 +1,53 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Form, Card, Alert } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import AnswerForm from './AnswerForm';
+import React, { useState, useEffect } from "react";
+import { Container, Form, Button, Card, Alert } from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+import AnswerForm from "./AnswerForm";
 
 function Questions() {
   const [questions, setQuestions] = useState([]);
-  const [filters, setFilters] = useState({ type: '', difficulty: '', tags: '' });
-  const [message, setMessage] = useState('');
-  const [alertVariant, setAlertVariant] = useState('');
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
+  const [filters, setFilters] = useState({
+    type: "",
+    difficulty: "",
+    tags: "",
+  });
+  const [message, setMessage] = useState("");
+  const [alertVariant, setAlertVariant] = useState("");
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 500);
-    return () => clearTimeout(handler);
+    fetchQuestions();
   }, [filters]);
 
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/questions', {
-          params: debouncedFilters,
-          withCredentials: true
-        });
-        setQuestions(res.data);
-        setMessage('');
-      } catch (err) {
-        setMessage(err.response?.data?.message || 'Failed to fetch questions');
-        setAlertVariant('danger');
-      }
-    };
+  const fetchQuestions = async () => {
+    try {
+      const query = new URLSearchParams({
+        ...(filters.type && { type: filters.type }),
+        ...(filters.difficulty && { difficulty: filters.difficulty }),
+        ...(filters.tags && { tags: filters.tags }),
+      }).toString();
+      const res = await axios.get(
+        `http://localhost:5000/api/questions?${query}`,
+        {
+          withCredentials: true,
+        }
+      );
+      // Prepend base URL to image paths
+      const updatedQuestions = res.data.map((q) => ({
+        ...q,
+        image: q.image || "",
+      }));
+
+      setQuestions(updatedQuestions);
+    } catch (err) {
+      setMessage("Failed to fetch questions");
+      setAlertVariant("danger");
+    }
+  };
+
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
     fetchQuestions();
-  }, [debouncedFilters]);
+  };
 
   return (
     <Container className="my-5">
@@ -42,78 +56,83 @@ function Questions() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h2 className="mb-4">Questions</h2>
-        {message && (
+        <h2>Questions</h2>
+        {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <Form onSubmit={handleFilterSubmit}>
+          <Form.Group className="mb-3" controlId="type">
+            <Form.Label>Type</Form.Label>
+            <Form.Select
+              value={filters.type}
+              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+            >
+              <option value="">All</option>
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="difficulty">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select
+              value={filters.difficulty}
+              onChange={(e) =>
+                setFilters({ ...filters, difficulty: e.target.value })
+              }
+            >
+              <option value="">All</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="tags">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control
+              type="text"
+              value={filters.tags}
+              onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
+            />
+          </Form.Group>
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300 }}
           >
-            <Alert variant={alertVariant}>{message}</Alert>
+            <Button variant="primary" type="submit">
+              Apply Filters
+            </Button>
           </motion.div>
-        )}
-        <Card className="mb-4 p-4">
-          <Form>
-            <Form.Group className="mb-3" controlId="type">
-              <Form.Label>Type</Form.Label>
-              <Form.Select
-                name="type"
-                value={filters.type}
-                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              >
-                <option value="">All</option>
-                <option value="numeric">Numeric</option>
-                <option value="ciphertext">Ciphertext</option>
-                <option value="code">Code</option>
-                <option value="formula">Formula</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="difficulty">
-              <Form.Label>Difficulty</Form.Label>
-              <Form.Select
-                name="difficulty"
-                value={filters.difficulty}
-                onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
-              >
-                <option value="">All</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="tags">
-              <Form.Label>Tags (comma-separated)</Form.Label>
-              <Form.Control
-                name="tags"
-                value={filters.tags}
-                onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
-                placeholder="Enter tags"
-              />
-            </Form.Group>
-          </Form>
-        </Card>
-        {questions.map((q) => (
-          <motion.div
-            key={q._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
-          >
-            <Card className="mb-3">
+        </Form>
+        <div className="mt-5">
+          {questions.map((q) => (
+            <Card key={q._id} className="mb-3">
               <Card.Body>
                 <Card.Title>{q.questionText}</Card.Title>
-                <Card.Text className="text-muted">
-                  Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(', ')}
-                </Card.Text>
+                {q.image && (
+                  <img
+                    src={q.image}
+                    alt={`Visual for question: ${q.questionText}`}
+                    className="img-fluid mb-3"
+                    style={{
+                      maxWidth: "100%",
+                      height: "auto",
+                      borderRadius: "6px",
+                    }}
+                  />
+                )}
+                <Card.Text>Type: {q.type}</Card.Text>
+                <Card.Text>Difficulty: {q.difficulty}</Card.Text>
+                <Card.Text>Tags: {q.tags.join(", ")}</Card.Text>
                 <AnswerForm
                   questionId={q._id}
                   setMessage={setMessage}
                   setAlertVariant={setAlertVariant}
+                  onSubmitSuccess={fetchQuestions}
                 />
               </Card.Body>
             </Card>
-          </motion.div>
-        ))}
+          ))}
+        </div>
       </motion.div>
     </Container>
   );

@@ -5,10 +5,13 @@ const questionSchema = new mongoose.Schema({
   type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula'], required: true },
   cipherType: { type: String, default: '' },
   difficulty: { type: String, enum: ['easy', 'medium', 'hard'], required: true },
-  tags: { type: [String], default: [] },
+  tags: [{ type: String }],
   expectedAnswer: { type: String, default: '' },
-  testCases: { type: [{ input: String, output: String }], default: [] },
-  source: { type: String, default: '' }
-});
+  testCases: [{ input: String, output: String }],
+  source: { type: String, default: '' },
+  image: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+},{ strict: true });
 
 module.exports = mongoose.model('Question', questionSchema);

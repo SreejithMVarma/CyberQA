@@ -60,10 +60,15 @@ backend/src/server.js
 backend/tests/answers.test.js
 backend/tests/app.test.js
 backend/tests/auth.test.js
+backend/tests/questions.test.js
+backend/tests/test-file.txt
+backend/uploads/docker-compose.yml
 docker-compose.yml
 docs/admin-guide.md
 docs/user-guide.md
 frontend/.gitignore
+frontend/cypress/e2e/adminDashboard.cy.js
+frontend/cypress/support/commands.js
 frontend/Dockerfile.frontend
 frontend/package.json
 frontend/public/index.html
@@ -94,6 +99,687 @@ repomix-output-v5.txt
 ================================================================
 Files
 ================================================================
+
+================
+File: backend/tests/questions.test.js
+================
+const request = require('supertest');
+const app = require('../src/app');
+const mongoose = require('mongoose');
+const User = require('../src/models/User');
+const Question = require('../src/models/Question');
+const fs = require('fs');
+const path = require('path');
+
+describe('Questions API', () => {
+  let adminCookie;
+
+  beforeAll(async () => {
+    await mongoose.connect(process.env.MONGO_URI);
+
+    // Create admin user
+    const admin = new User({
+      username: 'admin',
+      email: 'admin@example.com',
+      password: 'password',
+      role: 'admin',
+    });
+    await admin.save();
+
+    // Login as admin to get cookie
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'admin@example.com', password: 'password' });
+    adminCookie = res.headers['set-cookie'];
+  });
+
+  afterAll(async () => {
+    await User.deleteMany({});
+    await Question.deleteMany({});
+    await mongoose.connection.db.collection('sessions').deleteMany({});
+    await mongoose.connection.close();
+  });
+
+  it('should upload a valid image', async () => {
+    const imagePath = path.join(__dirname, 'test-image.jpg');
+    fs.writeFileSync(imagePath, 'fake image content');
+
+    const res = await request(app)
+      .post('/api/questions/upload-image')
+      .set('Cookie', adminCookie)
+      .attach('image', imagePath);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.imageUrl).toMatch(/\/uploads\/\d+-[a-z0-9]+-test-image\.jpg/);
+
+    // Verify image is accessible
+    const imageRes = await request(app).get(res.body.imageUrl);
+    expect(imageRes.statusCode).toBe(200);
+
+    fs.unlinkSync(imagePath);
+  });
+
+  it('should reject invalid file types', async () => {
+    const filePath = path.join(__dirname, 'test-file.txt');
+    fs.writeFileSync(filePath, 'text content');
+
+    const res = await request(app)
+      .post('/api/questions/upload-image')
+      .set('Cookie', adminCookie)
+      .attach('image', filePath);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body.message).toBe('Only JPEG and PNG images are allowed');
+
+    fs.unlinkSync(filePath);
+  });
+
+  it('should create a question with image', async () => {
+    const imagePath = path.join(__dirname, 'test-image.jpg');
+    fs.writeFileSync(imagePath, 'fake image content');
+
+    const uploadRes = await request(app)
+      .post('/api/questions/upload-image')
+      .set('Cookie', adminCookie)
+      .attach('image', imagePath);
+
+    const res = await request(app)
+      .post('/api/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        questionText: 'Test question',
+        type: 'numeric',
+        difficulty: 'easy',
+        image: uploadRes.body.imageUrl,
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.questionText).toBe('Test question');
+    expect(res.body.image).toMatch(/\/uploads\/\d+-[a-z0-9]+-test-image\.jpg/);
+
+    fs.unlinkSync(imagePath);
+  });
+
+  it('should create a question with valid tags', async () => {
+    const res = await request(app)
+      .post('/api/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        questionText: 'Test question with tags',
+        type: 'numeric',
+        difficulty: 'easy',
+        tags: 'crypto,network,security',
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.questionText).toBe('Test question with tags');
+    expect(res.body.tags).toEqual(['crypto', 'network', 'security']);
+  });
+
+  it('should handle empty tags', async () => {
+    const res = await request(app)
+      .post('/api/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        questionText: 'Test question no tags',
+        type: 'numeric',
+        difficulty: 'easy',
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.questionText).toBe('Test question no tags');
+    expect(res.body.tags).toEqual([]);
+  });
+
+  it('should handle undefined tags', async () => {
+    const res = await request(app)
+      .post('/api/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        questionText: 'Test question undefined tags',
+        type: 'numeric',
+        difficulty: 'easy',
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.questionText).toBe('Test question undefined tags');
+    expect(res.body.tags).toEqual([]);
+  });
+
+  it('should handle array tags', async () => {
+    const res = await request(app)
+      .post('/api/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        questionText: 'Test question array tags',
+        type: 'numeric',
+        difficulty: 'easy',
+        tags: ['crypto', 'network'],
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.questionText).toBe('Test question array tags');
+    expect(res.body.tags).toEqual(['crypto', 'network']);
+  });
+
+  it('should create a question without expectedAnswer', async () => {
+    const res = await request(app)
+      .post('/api/questions')
+      .set('Cookie', adminCookie)
+      .send({
+        questionText: 'Test question no answer',
+        type: 'numeric',
+        difficulty: 'easy',
+      });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.questionText).toBe('Test question no answer');
+    expect(res.body.expectedAnswer).toBe('');
+  });
+});
+
+================
+File: backend/tests/test-file.txt
+================
+text content
+
+================
+File: backend/uploads/docker-compose.yml
+================
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/cyberqa
+      - SESSION_SECRET=your-session-secret
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - mongo
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+volumes:
+  mongo-data:
+
+================
+File: frontend/cypress/e2e/adminDashboard.cy.js
+================
+/* global cy */
+
+describe('Admin Dashboard', () => {
+  beforeEach(() => {
+    cy.request('POST', 'http://localhost:5000/api/auth/register', {
+      username: 'admin',
+      email: 'admin@example.com',
+      password: 'password',
+      role: 'admin',
+    });
+    cy.request('POST', 'http://localhost:5000/api/auth/login', {
+      email: 'admin@example.com',
+      password: 'password',
+    }).then((res) => {
+      cy.setCookie('connect.sid', res.headers['set-cookie'][0].split(';')[0].split('=')[1]);
+    });
+    cy.visit('/admin');
+  });
+
+  it('should upload an image via file input', () => {
+    cy.get('#image input[type="file"]').attachFile('test-image.jpg');
+    cy.get('button').contains('Upload Image').click();
+    cy.get('.alert-success').should('contain', 'Image uploaded successfully');
+    cy.get('img[alt="Preview of uploaded question image"]').should('be.visible');
+  });
+
+  it('should upload an image via drag and drop', () => {
+    cy.get('#image div').trigger('dragover');
+    cy.get('#image div').trigger('drop', {
+      dataTransfer: { files: [new File(['fake image'], 'test-image.jpg', { type: 'image/jpeg' })] },
+    });
+    cy.get('button').contains('Upload Image').click();
+    cy.get('.alert-success').should('contain', 'Image uploaded successfully');
+    cy.get('img[alt="Preview of uploaded question image"]').should('be.visible');
+  });
+
+  it('should create a question with an image', () => {
+    cy.get('#image input[type="file"]').attachFile('test-image.jpg');
+    cy.get('button').contains('Upload Image').click();
+    cy.get('.alert-success').should('contain', 'Image uploaded successfully');
+    cy.get('img[alt="Preview of uploaded question image"]').should('be.visible');
+    cy.get('#questionText').type('Test question');
+    cy.get('#type').select('numeric');
+    cy.get('#difficulty').select('easy');
+    cy.get('#testCases').type('[{"input":"1","output":"2"}]');
+    cy.get('button').contains('Create Question').click();
+    cy.get('.alert-success').should('contain', 'Question created successfully');
+    cy.get('table').contains('Test question');
+  });
+
+  it('should create a question without expectedAnswer', () => {
+    cy.get('#questionText').type('Test question no answer');
+    cy.get('#type').select('numeric');
+    cy.get('#difficulty').select('easy');
+    cy.get('button').contains('Create Question').click();
+    cy.get('.alert-success').should('contain', 'Question created successfully');
+    cy.get('table').contains('Test question no answer');
+  });
+});
+
+================
+File: frontend/cypress/support/commands.js
+================
+import 'cypress-file-upload';
+
+================
+File: .gitignore
+================
+node_modules/
+.env
+dist/
+build/
+*.log
+
+================
+File: backend/Dockerfile.backend
+================
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .    
+EXPOSE 5000
+
+CMD ["npm", "start"]
+
+================
+File: backend/src/middleware/auth.js
+================
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const bcrypt = require('bcrypt');
+const User = require('../models/User');
+
+passport.use(new LocalStrategy(
+  { usernameField: 'email' },
+  async (email, password, done) => {
+    try {
+      const user = await User.findOne({ email });
+      if (!user) return done(null, false, { message: 'Incorrect email' });
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) return done(null, false, { message: 'Incorrect password' });
+
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  }
+));
+
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
+});
+
+const isAuthenticated = (req, res, next) => {
+  if (req.isAuthenticated()) return next();
+  res.status(401).json({ message: 'Unauthorized' });
+};
+
+const isAdmin = (req, res, next) => {
+  if (req.isAuthenticated() && req.user.role === 'admin') return next();
+  res.status(403).json({ message: 'Admin access required' });
+};
+
+module.exports = { isAuthenticated, isAdmin };
+
+================
+File: backend/src/server.js
+================
+const app = require('./app');
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+================
+File: docker-compose.yml
+================
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/cyberqa
+      - SESSION_SECRET=your-secret-key
+    depends_on:
+      - mongo
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+
+================
+File: frontend/.gitignore
+================
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+================
+File: frontend/Dockerfile.frontend
+================
+FROM node:18
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+EXPOSE 3000
+
+CMD ["npm", "start"]
+
+================
+File: frontend/public/index.html
+================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta
+      name="description"
+      content="Web site created using create-react-app"
+    />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <!--
+      Notice the use of %PUBLIC_URL% in the tags above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+
+      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+    <title>React App</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+
+      You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+
+      To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+  </body>
+</html>
+
+================
+File: frontend/public/manifest.json
+================
+{
+  "short_name": "React App",
+  "name": "Create React App Sample",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+
+================
+File: frontend/public/robots.txt
+================
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Disallow:
+
+================
+File: frontend/README.md
+================
+# Getting Started with Create React App
+
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## Available Scripts
+
+In the project directory, you can run:
+
+### `npm start`
+
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
+
+### `npm test`
+
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+
+### `npm run build`
+
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
+
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
+
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+
+### `npm run eject`
+
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+
+## Learn More
+
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+
+To learn React, check out the [React documentation](https://reactjs.org/).
+
+### Code Splitting
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+
+### Analyzing the Bundle Size
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+
+### Making a Progressive Web App
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+
+### Advanced Configuration
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+
+### Deployment
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+
+### `npm run build` fails to minify
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+================
+File: frontend/src/__tests__/Questions.test.js
+================
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import Questions from '../pages/Questions';
+import { AuthContext } from '../context/AuthContext';
+import axios from 'axios';
+import MockAdapter from 'axios-mock-adapter';
+
+const mock = new MockAdapter(axios);
+
+describe('Questions Page', () => {
+  const user = { id: '1', username: 'test', role: 'user' };
+  const questions = [{ _id: '1', questionText: 'Test question', type: 'numeric', difficulty: 'easy', tags: ['test'] }];
+
+  beforeEach(() => {
+    mock.reset();
+    mock.onGet('http://localhost:5000/api/questions').reply(200, questions);
+  });
+
+  it('renders questions', async () => {
+    render(
+      <AuthContext.Provider value={{ user, loading: false }}>
+        <MemoryRouter>
+          <Questions />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    );
+    await waitFor(() => {
+      expect(screen.getByText('Test question')).toBeInTheDocument();
+    });
+  });
+});
+
+================
+File: frontend/src/App.test.js
+================
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+================
+File: frontend/src/logo.svg
+================
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
+
+================
+File: frontend/src/reportWebVitals.js
+================
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+================
+File: frontend/src/setupTests.js
+================
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+================
+File: package.json
+================
+{
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
 
 ================
 File: repomix-output-v5.txt
@@ -2786,85 +3472,244 @@ End of Codebase
 ================================================================
 
 ================
-File: .gitignore
+File: backend/src/models/Answer.js
 ================
-node_modules/
-.env
-dist/
-build/
-*.log
+const mongoose = require('mongoose');
 
-================
-File: backend/Dockerfile.backend
-================
-FROM node:18
+const answerSchema = new mongoose.Schema({
+  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true },
+  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+  xpEarned: { type: Number, default: 0 },
+  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' },
+  adminComments: { type: String, default: '' }
+});
 
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY . .    
-EXPOSE 5000
-
-CMD ["npm", "start"]
+module.exports = mongoose.model('Answer', answerSchema);
 
 ================
-File: backend/src/middleware/auth.js
+File: backend/src/models/Question.js
 ================
-const passport = require('passport');
-const LocalStrategy = require('passport-local').Strategy;
-const bcrypt = require('bcrypt');
-const User = require('../models/User');
+const mongoose = require('mongoose');
 
-passport.use(new LocalStrategy(
-  { usernameField: 'email' },
-  async (email, password, done) => {
-    try {
-      const user = await User.findOne({ email });
-      if (!user) return done(null, false, { message: 'Incorrect email' });
+const questionSchema = new mongoose.Schema({
+  questionText: { type: String, required: true },
+  type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula'], required: true },
+  cipherType: { type: String, default: '' },
+  difficulty: { type: String, enum: ['easy', 'medium', 'hard'], required: true },
+  tags: [{ type: String }],
+  expectedAnswer: { type: String, default: '' },
+  testCases: [{ input: String, output: String }],
+  source: { type: String, default: '' },
+  image: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+},{ strict: true });
 
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) return done(null, false, { message: 'Incorrect password' });
+module.exports = mongoose.model('Question', questionSchema);
 
-      return done(null, user);
-    } catch (err) {
-      return done(err);
-    }
+================
+File: backend/src/models/User.js
+================
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
+const userSchema = new mongoose.Schema({
+  username: {
+    type: String,
+    unique: true,
+    trim: true,
+    minlength: [3, 'Username must be at least 3 characters long'],
+    maxlength: [30, 'Username cannot exceed 30 characters'],
+    required: [function () { return this.isNew; }, 'Username is required for new users'],
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user',
+  },
+  xp: {
+    type: Number,
+    default: 0,
+  },
+  wallet: {
+    type: Number,
+    default: 0,
+  },
+});
+
+userSchema.pre('save', async function (next) {
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
   }
-));
+  next();
+});
 
-passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser(async (id, done) => {
+module.exports = mongoose.model('User', userSchema);
+
+================
+File: backend/src/routes/questions.js
+================
+const express = require('express');
+const mongoose = require('mongoose');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const Question = require('../models/Question');
+const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png/;
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = filetypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Only JPEG and PNG images are allowed'));
+  },
+});
+
+// Image upload endpoint
+router.post('/upload-image', isAuthenticated, isAdmin, upload.single('image'), async (req, res) => {
   try {
-    const user = await User.findById(id);
-    done(null, user);
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image uploaded' });
+    }
+    const imageUrl = `/uploads/${req.file.filename}`;
+    res.json({ imageUrl });
   } catch (err) {
-    done(err);
+    res.status(500).json({ message: err.message });
   }
 });
 
-const isAuthenticated = (req, res, next) => {
-  if (req.isAuthenticated()) return next();
-  res.status(401).json({ message: 'Unauthorized' });
-};
+// Get all questions with filters
+router.get('/', async (req, res) => {
+  try {
+    const { type, difficulty, tags } = req.query;
+    const query = {};
+    if (type) query.type = type;
+    if (difficulty) query.difficulty = difficulty;
+    if (tags) query.tags = { $in: tags.split(',') };
+    const questions = await Question.find(query);
+    res.json(questions);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
-const isAdmin = (req, res, next) => {
-  if (req.isAuthenticated() && req.user.role === 'admin') return next();
-  res.status(403).json({ message: 'Admin access required' });
-};
+// Create question
+router.post('/', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { questionText, type, cipherType, difficulty, tags, expectedAnswer, testCases, source, image } = req.body;
+    if (!questionText || !type || !difficulty) {
+      return res.status(400).json({ message: 'Required fields: questionText, type, difficulty' });
+    }
+    const question = new Question({
+      questionText,
+      type,
+      cipherType: cipherType || '',
+      difficulty,
+      tags: typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : (Array.isArray(tags) ? tags : []),
+      expectedAnswer: expectedAnswer || '',
+      testCases: testCases || [],
+      source: source || '',
+      image: image || '',
+    });
+    await question.save();
+    res.status(201).json(question);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
-module.exports = { isAuthenticated, isAdmin };
+// Update question
+router.put('/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid question ID' });
+    }
+    const { questionText, type, cipherType, difficulty, tags, expectedAnswer, testCases, source, image } = req.body;
+    const question = await Question.findById(id);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    question.questionText = questionText || question.questionText;
+    question.type = type || question.type;
+    question.cipherType = cipherType !== undefined ? cipherType : question.cipherType;
+    question.difficulty = difficulty || question.difficulty;
+    question.tags = typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : (Array.isArray(tags) ? tags : question.tags);
+    question.expectedAnswer = expectedAnswer !== undefined ? expectedAnswer : question.expectedAnswer;
+    question.testCases = testCases || question.testCases;
+    question.source = source !== undefined ? source : question.source;
+    question.image = image !== undefined ? image : question.image;
+    question.updatedAt = Date.now();
+    await question.save();
+    res.json(question);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete question
+router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid question ID' });
+    }
+    const question = await Question.findByIdAndDelete(id);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+    res.json({ message: 'Question deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
 
 ================
-File: backend/src/server.js
+File: backend/tests/app.test.js
 ================
-const app = require('./app');
+const request = require('supertest');
+const app = require('../src/app');
+const mongoose = require('mongoose');
 
-const PORT = process.env.PORT || 5000;
+describe('GET /', () => {
+  it('should return CyberQA API', async () => {
+    const res = await request(app).get('/');
+    expect(res.statusCode).toBe(200);
+    expect(res.text).toBe('CyberQA API');
+  });
+});
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+afterAll(async () => {
+  await mongoose.connection.close();
 });
 
 ================
@@ -2945,7 +3790,7 @@ describe('Auth API', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toBe('Username can only contain alphanumeric characters, underscores, or hyphens');
+    expect(res.body.message).toMatch(/Username can only contain/i); // Match error pattern
   });
 
   it('should allow login for existing user and authenticate', async () => {
@@ -2971,486 +3816,6 @@ describe('Auth API', () => {
     expect(meRes.statusCode).toBe(200);
     expect(meRes.body.username).toBe('olduser');
   });
-});
-
-================
-File: docker-compose.yml
-================
-services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.backend
-    ports:
-      - "5000:5000"
-    environment:
-      - MONGO_URI=mongodb://mongo:27017/cyberqa
-      - SESSION_SECRET=your-secret-key
-    depends_on:
-      - mongo
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-
-  mongo:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-
-================
-File: frontend/.gitignore
-================
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
-
-# production
-/build
-
-# misc
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-================
-File: frontend/Dockerfile.frontend
-================
-FROM node:18
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY . .
-EXPOSE 3000
-
-CMD ["npm", "start"]
-
-================
-File: frontend/public/index.html
-================
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
-</html>
-
-================
-File: frontend/public/manifest.json
-================
-{
-  "short_name": "React App",
-  "name": "Create React App Sample",
-  "icons": [
-    {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "logo192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
-}
-
-================
-File: frontend/public/robots.txt
-================
-# https://www.robotstxt.org/robotstxt.html
-User-agent: *
-Disallow:
-
-================
-File: frontend/README.md
-================
-# Getting Started with Create React App
-
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
-
-## Available Scripts
-
-In the project directory, you can run:
-
-### `npm start`
-
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
-
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
-
-### `npm test`
-
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
-
-### `npm run build`
-
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
-
-================
-File: frontend/src/__tests__/Questions.test.js
-================
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import Questions from '../pages/Questions';
-import { AuthContext } from '../context/AuthContext';
-import axios from 'axios';
-import MockAdapter from 'axios-mock-adapter';
-
-const mock = new MockAdapter(axios);
-
-describe('Questions Page', () => {
-  const user = { id: '1', username: 'test', role: 'user' };
-  const questions = [{ _id: '1', questionText: 'Test question', type: 'numeric', difficulty: 'easy', tags: ['test'] }];
-
-  beforeEach(() => {
-    mock.reset();
-    mock.onGet('http://localhost:5000/api/questions').reply(200, questions);
-  });
-
-  it('renders questions', async () => {
-    render(
-      <AuthContext.Provider value={{ user, loading: false }}>
-        <MemoryRouter>
-          <Questions />
-        </MemoryRouter>
-      </AuthContext.Provider>
-    );
-    await waitFor(() => {
-      expect(screen.getByText('Test question')).toBeInTheDocument();
-    });
-  });
-});
-
-================
-File: frontend/src/App.test.js
-================
-import { render, screen } from '@testing-library/react';
-import App from './App';
-
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
-});
-
-================
-File: frontend/src/logo.svg
-================
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
-
-================
-File: frontend/src/reportWebVitals.js
-================
-const reportWebVitals = onPerfEntry => {
-  if (onPerfEntry && onPerfEntry instanceof Function) {
-    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
-      getCLS(onPerfEntry);
-      getFID(onPerfEntry);
-      getFCP(onPerfEntry);
-      getLCP(onPerfEntry);
-      getTTFB(onPerfEntry);
-    });
-  }
-};
-
-export default reportWebVitals;
-
-================
-File: frontend/src/setupTests.js
-================
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
-// expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
-
-================
-File: package.json
-================
-{
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  }
-}
-
-================
-File: backend/src/models/Answer.js
-================
-const mongoose = require('mongoose');
-
-const answerSchema = new mongoose.Schema({
-  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  content: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
-  xpEarned: { type: Number, default: 0 },
-  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' },
-  adminComments: { type: String, default: '' }
-});
-
-module.exports = mongoose.model('Answer', answerSchema);
-
-================
-File: backend/src/models/Question.js
-================
-const mongoose = require('mongoose');
-
-const questionSchema = new mongoose.Schema({
-  questionText: { type: String, required: true },
-  type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula'], required: true },
-  cipherType: { type: String, default: '' },
-  difficulty: { type: String, enum: ['easy', 'medium', 'hard'], required: true },
-  tags: { type: [String], default: [] },
-  expectedAnswer: { type: String, default: '' },
-  testCases: { type: [{ input: String, output: String }], default: [] },
-  source: { type: String, default: '' }
-});
-
-module.exports = mongoose.model('Question', questionSchema);
-
-================
-File: backend/src/models/User.js
-================
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-
-const userSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    unique: true,
-    trim: true,
-    minlength: [3, 'Username must be at least 3 characters long'],
-    maxlength: [30, 'Username cannot exceed 30 characters'],
-    required: [function () { return this.isNew; }, 'Username is required for new users'],
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user',
-  },
-  xp: {
-    type: Number,
-    default: 0,
-  },
-  wallet: {
-    type: Number,
-    default: 0,
-  },
-});
-
-userSchema.pre('save', async function (next) {
-  if (this.isModified('password')) {
-    this.password = await bcrypt.hash(this.password, 10);
-  }
-  next();
-});
-
-module.exports = mongoose.model('User', userSchema);
-
-================
-File: backend/src/routes/questions.js
-================
-const express = require('express');
-const Question = require('../models/Question');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
-const router = express.Router();
-
-// Get all questions (public for users)
-router.get('/', isAuthenticated, async (req, res) => {
-  try {
-    const { type, difficulty, tags } = req.query;
-    const query = {};
-    if (type) query.type = type;
-    if (difficulty) query.difficulty = difficulty;
-    if (tags) query.tags = { $in: tags.split(',') };
-    const questions = await Question.find(query);
-    res.json(questions);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Create question (admin only)
-router.post('/', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const question = new Question(req.body);
-    await question.save();
-    res.status(201).json(question);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Update question (admin only)
-router.put('/:id', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const question = await Question.findById(req.params.id);
-    if (!question) return res.status(404).json({ message: 'Question not found' });
-    Object.assign(question, req.body);
-    await question.save();
-    res.json(question);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Delete question (admin only)
-router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const deleted = await Question.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: 'Question not found' });
-    res.json({ message: 'Question deleted' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-module.exports = router;
-
-================
-File: backend/tests/app.test.js
-================
-const request = require('supertest');
-const app = require('../src/app');
-const mongoose = require('mongoose');
-
-describe('GET /', () => {
-  it('should return CyberQA API', async () => {
-    const res = await request(app).get('/');
-    expect(res.statusCode).toBe(200);
-    expect(res.text).toBe('CyberQA API');
-  });
-});
-
-afterAll(async () => {
-  await mongoose.connection.close();
 });
 
 ================
@@ -3713,6 +4078,7 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const cors = require('cors');
 require('dotenv').config();
+// require('./config/passport');
 
 const authRoutes = require('./routes/auth');
 const questionRoutes = require('./routes/questions');
@@ -3720,14 +4086,19 @@ const answerRoutes = require('./routes/answers');
 
 const app = express();
 
-// Middleware
+// CORS Middleware
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Body parsers
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Session setup using MongoDB store
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
@@ -3742,20 +4113,27 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// Initialize Passport
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error(err));
+// Serve static files from /uploads
+app.use('/uploads', express.static('uploads'));
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/answers', answerRoutes);
 
+// Base route
 app.get('/', (req, res) => res.send('CyberQA API'));
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 module.exports = app;
 
@@ -3877,6 +4255,7 @@ File: backend/package.json
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "axios": "^1.7.7",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "connect-mongo": "^5.1.0",
@@ -3885,6 +4264,7 @@ File: backend/package.json
     "express": "^5.1.0",
     "express-session": "^1.18.1",
     "mongoose": "^8.16.4",
+    "multer": "^1.4.5-lts.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0"
   },
@@ -4014,268 +4394,44 @@ router.get('/user', isAuthenticated, async (req, res) => {
 module.exports = router;
 
 ================
-File: backend/src/routes/auth.js
-================
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
-const { isAuthenticated } = require('../middleware/auth');
-const router = express.Router();
-
-router.post('/register', async (req, res, next) => {
-  try {
-    const { username, email, password } = req.body;
-    console.log('Registration request:', { username, email }); // Debug log
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: 'Username, email, and password are required' });
-    }
-
-    // Add regex validation for username
-    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-      return res.status(400).json({ message: 'Username can only contain alphanumeric characters, underscores, or hyphens' });
-    }
-
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) {
-      return res.status(400).json({
-        message: existingUser.email === email ? 'Email already exists' : 'Username already exists',
-      });
-    }
-
-    const user = new User({ username, email, password });
-    await user.save();
-    
-    // Initialize Passport session
-    req.login(user, (err) => {
-      if (err) {
-        console.error('Error logging in user after registration:', err);
-        return next(err);
-      }
-      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username };
-      console.log('User registered:', req.session.user); // Debug log
-      return res.status(201).json({ message: 'User registered successfully', user: req.session.user });
-    });
-  } catch (err) {
-    console.error('Error registering user:', err);
-    return res.status(500).json({ message: 'Server error during registration' });
-  }
-});
-
-router.post('/login', async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
-
-    // Initialize Passport session
-    req.login(user, (err) => {
-      if (err) {
-        console.error('Error logging in user:', err);
-        return next(err);
-      }
-      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username || '' };
-      res.json({ message: 'Login successful', user: req.session.user });
-    });
-  } catch (err) {
-    console.error('Error logging in:', err);
-    res.status(500).json({ message: 'Server error during login' });
-  }
-});
-
-router.get('/me', isAuthenticated, (req, res) => {
-  res.json(req.session.user);
-});
-
-router.post('/logout', isAuthenticated, (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      console.error('Error logging out:', err);
-      return res.status(500).json({ message: 'Logout failed' });
-    }
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Error destroying session:', err);
-        return res.status(500).json({ message: 'Logout failed' });
-      }
-      res.clearCookie('connect.sid');
-      res.json({ message: 'Logout successful' });
-    });
-  });
-});
-
-module.exports = router;
-
-================
-File: backend/tests/answers.test.js
-================
-const request = require('supertest');
-const app = require('../src/app');
-const User = require('../src/models/User');
-const Question = require('../src/models/Question');
-const Answer = require('../src/models/Answer');
-
-let userCookie, adminCookie, question, userId, adminId;
-
-beforeAll(async () => {
-  await User.deleteMany({});
-  await Answer.deleteMany({});
-  await Question.deleteMany({});
-
-  // Generate unique data
-  const timestamp = Date.now();
-  const userUsername = `testuser_${timestamp}`;
-  const adminUsername = `adminuser_${timestamp}`;
-  const userEmail = `user_${timestamp}@test.com`;
-  const adminEmail = `admin_${timestamp}@test.com`;
-
-  global.userInfo = {
-    username: userUsername,
-    email: userEmail,
-    password: 'password',
-  };
-
-  global.adminInfo = {
-    username: adminUsername,
-    email: adminEmail,
-    password: 'password',
-  };
-
-  // Register users
-  await request(app).post('/api/auth/register').send(global.userInfo);
-  await request(app).post('/api/auth/register').send(global.adminInfo);
-
-  // Update admin role
-  const admin = await User.findOne({ email: global.adminInfo.email });
-  if (!admin) throw new Error('Admin not created');
-  admin.role = 'admin';
-  await admin.save();
-
-  const user = await User.findOne({ email: global.userInfo.email });
-  if (!user) throw new Error('User not created');
-
-  userId = user._id;
-  adminId = admin._id;
-
-  // Login users
-  const userRes = await request(app)
-    .post('/api/auth/login')
-    .send({ email: global.userInfo.email, password: global.userInfo.password });
-
-  const adminRes = await request(app)
-    .post('/api/auth/login')
-    .send({ email: global.adminInfo.email, password: global.adminInfo.password });
-
-  userCookie = userRes.headers['set-cookie'];
-  adminCookie = adminRes.headers['set-cookie'];
-
-  // Create a test question
-  question = await Question.create({
-    questionText: 'Test question',
-    tags: ['test'],
-    difficulty: 'easy',
-    createdBy: adminId,
-  });
-});
-
-afterAll(async () => {
-  await User.deleteMany({});
-  await Answer.deleteMany({});
-  await Question.deleteMany({});
-});
-
-describe('Answers API', () => {
-  test('should allow admin to suggest changes to an answer', async () => {
-    const answer = await Answer.create({
-      questionId: question._id,
-      userId: userId,
-      content: 'Test answer',
-      status: 'pending',
-    });
-
-    const res = await request(app)
-      .put(`/api/answers/${answer._id}/suggest`)
-      .set('Cookie', adminCookie)
-      .send({ suggestedAnswer: 'Updated suggestion', adminComments: 'Looks better' });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe('Suggested answer updated');
-  });
-
-  test('should allow admin to fetch all pending answers with username', async () => {
-    const answer = await Answer.create({
-      questionId: question._id,
-      userId: userId,
-      content: 'Test answer',
-      status: 'pending',
-    });
-
-    const res = await request(app)
-      .get('/api/answers/pending')
-      .set('Cookie', adminCookie);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toBeInstanceOf(Array);
-    expect(res.body.some((a) => a._id === answer._id.toString())).toBe(true);
-    expect(res.body[0].questionId.questionText).toBe('Test question');
-    expect(res.body[0].user.username).toBe(global.userInfo.username);
-  });
-
-  test('should allow user to resubmit an answer and reflect in user answers', async () => {
-    const answer = await Answer.create({
-      questionId: question._id,
-      userId: userId,
-      content: '40',
-      status: 'rejected',
-      adminComments: 'answer is wrong',
-    });
-
-    const res = await request(app)
-      .put(`/api/answers/${answer._id}/resubmit`)
-      .set('Cookie', userCookie)
-      .send({ content: '42' });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.message).toBe('Answer resubmitted');
-
-    const userAnswers = await request(app)
-      .get('/api/answers/my')
-      .set('Cookie', userCookie);
-
-    expect(userAnswers.statusCode).toBe(200);
-    expect(userAnswers.body).toBeInstanceOf(Array);
-    expect(userAnswers.body.some((a) => a.content === '42')).toBe(true);
-  });
-});
-
-================
 File: docs/admin-guide.md
 ================
 # CyberQA Admin Guide
 
-## Access Dashboard
-- Log in with an admin account (set `role: 'admin'` in MongoDB).
-- Visit `/admin` to access the modern admin dashboard.
+## Login
+- Visit `/login` and enter your admin email and password.
+- Redirects to `/admin` on successful login.
 
 ## Manage Questions
-- Toggle the "Question Form" to add or edit questions in a clean form.
-- Fill in fields (question text, type, difficulty, etc.) and submit.
-- Edit or delete questions in the responsive table below (click "Edit" or "Delete").
+- Navigate to `/admin` to access the Admin Dashboard.
+- **Create Question**:
+  - Fill in the form with:
+    - **Question Text**: The question content (required).
+    - **Type**: Select `numeric`, `ciphertext`, `code`, or `formula` (required).
+    - **Cipher Type**: Optional cipher type (e.g., AES, RSA).
+    - **Difficulty**: Select `easy`, `medium`, or `hard` (required).
+    - **Tags**: Enter comma-separated tags (e.g., `crypto,network,security`). Leave blank for no tags.
+    - **Expected Answer**: Optional answer for verification.
+    - **Test Cases**: Optional JSON array of input/output pairs (e.g., `[{"input":"1","output":"2"}]`) for code questions.
+    - **Source**: Optional source attribution.
+    - **Image**: Upload a JPEG/PNG image via file picker, camera (on mobile), or drag-and-drop. The preview appears after upload.
+  - Click "Create Question" to save.
+- **Edit Question**:
+  - Click "Edit" on a question in the table.
+  - Update fields and click "Update Question".
+  - Click "Cancel" to discard changes.
+- **Delete Question**:
+  - Click "Delete" on a question in the table to remove it.
 
 ## Verify Answers
-- Toggle the "Pending Answers" section to view pending answers.
-- Enter custom XP values and click "Verify" (green) or "Reject" (red).
-- Animated alerts confirm actions.
-  
-### Verify Answers
-- Navigate to `/admin` to view all pending answers in the “Pending Answers” table.
-- The table displays the submitter’s username, question, answer, status, XP input, and comments.
-- For each answer, you can:
-  - Enter XP and click “Verify” to approve.
-  - Click “Reject” to decline without comments.
-  - Enter suggestions in the “Comments” field and click “Suggest Changes” to request resubmission.
+- In the "Pending Answers" table, view pending answers with username, question text, and answer content.
+- Actions:
+  - **Verify**: Mark as `verified` to approve and award XP.
+  - **Suggest Changes**: Enter comments and mark as `rejected` for user resubmission.
+  - **Reject**: Mark as `rejected` without comments.
+
+## Logout
+- Click "Logout" in the navbar to end your session.
 
 ================
 File: frontend/package.json
@@ -4326,6 +4482,7 @@ File: frontend/package.json
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "axios-mock-adapter": "^2.1.0",
+    "cypress-file-upload": "^5.0.8",
     "jest": "^27.5.1"
   }
 }
@@ -4558,6 +4715,450 @@ function Profile() {
 export default Profile;
 
 ================
+File: backend/src/routes/auth.js
+================
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+const { isAuthenticated } = require('../middleware/auth');
+const router = express.Router();
+
+router.post('/register', async (req, res, next) => {
+  try {
+    const { username, email, password } = req.body;
+    console.log('Registration request:', { username, email }); // Debug log
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Username, email, and password are required' });
+    }
+
+    // Add regex validation for username
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return res.status(400).json({ message: 'Username can only contain alphanumeric characters, underscores, or hyphens' });
+    }
+
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return res.status(400).json({
+        message: existingUser.email === email ? 'Email already exists' : 'Username already exists',
+      });
+    }
+
+    const user = new User({ username, email, password });
+    await user.save();
+    
+    // Initialize Passport session
+    req.login(user, (err) => {
+      if (err) {
+        console.error('Error logging in user after registration:', err);
+        return next(err);
+      }
+      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username };
+      console.log('User registered:', req.session.user); // Debug log
+      return res.status(201).json({ message: 'User registered successfully', user: req.session.user });
+    });
+  } catch (err) {
+    console.error('Error registering user:', err);
+    return res.status(500).json({ message: 'Server error during registration' });
+  }
+});
+
+router.post('/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: 'Invalid credentials' });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // Initialize Passport session
+    req.login(user, (err) => {
+      if (err) {
+        console.error('Error logging in user:', err);
+        return next(err);
+      }
+      req.session.user = { id: user._id, email: user.email, role: user.role, username: user.username || '' };
+      res.json({ message: 'Login successful', user: req.session.user });
+    });
+  } catch (err) {
+    console.error('Error logging in:', err);
+    res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+router.get('/me', isAuthenticated, (req, res) => {
+  res.json(req.session.user);
+});
+
+router.post('/logout', isAuthenticated, (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('Error logging out:', err);
+      return res.status(500).json({ message: 'Logout failed' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ message: 'Logout failed' });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ message: 'Logout successful' });
+    });
+  });
+});
+
+module.exports = router;
+
+================
+File: backend/tests/answers.test.js
+================
+const request = require('supertest');
+const app = require('../src/app');
+const mongoose = require('mongoose');
+const User = require('../src/models/User');
+const Question = require('../src/models/Question');
+const Answer = require('../src/models/Answer');
+
+let userCookie, adminCookie, question, userId, adminId;
+
+beforeAll(async () => {
+  await mongoose.connect(process.env.MONGO_URI);
+  await User.deleteMany({});
+  await Answer.deleteMany({});
+  await Question.deleteMany({});
+
+  const timestamp = Date.now();
+  const userUsername = `testuser_${timestamp}`;
+  const adminUsername = `adminuser_${timestamp}`;
+  const userEmail = `user_${timestamp}@test.com`;
+  const adminEmail = `admin_${timestamp}@test.com`;
+
+  global.userInfo = {
+    username: userUsername,
+    email: userEmail,
+    password: 'password',
+  };
+
+  global.adminInfo = {
+    username: adminUsername,
+    email: adminEmail,
+    password: 'password',
+  };
+
+  await request(app).post('/api/auth/register').send(global.userInfo);
+  await request(app).post('/api/auth/register').send(global.adminInfo);
+
+  const admin = await User.findOne({ email: global.adminInfo.email });
+  admin.role = 'admin';
+  await admin.save();
+
+  const user = await User.findOne({ email: global.userInfo.email });
+  userId = user._id;
+  adminId = admin._id;
+
+  const userRes = await request(app)
+    .post('/api/auth/login')
+    .send({ email: global.userInfo.email, password: global.userInfo.password })
+    .expect(200);
+
+  const adminRes = await request(app)
+    .post('/api/auth/login')
+    .send({ email: global.adminInfo.email, password: global.adminInfo.password })
+    .expect(200);
+
+  userCookie = userRes.headers['set-cookie'];
+  adminCookie = adminRes.headers['set-cookie'];
+
+  if (!userCookie || !adminCookie) {
+    console.error('Login cookie missing:', {
+      userCookie,
+      adminCookie,
+    });
+    throw new Error('Login failed — cookies not set');
+  }
+
+  question = await Question.create({
+    questionText: 'Test question',
+    type: 'numeric',
+    tags: ['test'],
+    difficulty: 'easy',
+  });
+});
+
+afterAll(async () => {
+  await User.deleteMany({});
+  await Answer.deleteMany({});
+  await Question.deleteMany({});
+  await mongoose.connection.close();
+});
+
+describe('Answers API', () => {
+  test('should allow admin to suggest changes to an answer', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: userId,
+      content: 'Test answer',
+      status: 'pending',
+    });
+
+    const res = await request(app)
+      .put(`/api/answers/${answer._id}/suggest`)
+      .set('Cookie', adminCookie)
+      .send({ adminComments: 'Looks better' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.status).toBe('rejected');
+    expect(res.body.adminComments).toBe('Looks better');
+  });
+
+  test('should allow admin to fetch all pending answers with username', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: userId,
+      content: 'Test answer',
+      status: 'pending',
+    });
+
+    const res = await request(app)
+      .get('/api/answers/pending')
+      .set('Cookie', adminCookie);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBeInstanceOf(Array);
+
+    const found = res.body.find((a) => a._id === answer._id.toString());
+    expect(found).toBeTruthy();
+    expect(found.questionId?.questionText).toBe('Test question');
+    expect(found.userId?.username).toBe(global.userInfo.username);
+  });
+
+  test('should allow user to resubmit an answer and reflect in user answers', async () => {
+    const answer = await Answer.create({
+      questionId: question._id,
+      userId: userId,
+      content: '40',
+      status: 'rejected',
+      adminComments: 'answer is wrong',
+    });
+
+    const res = await request(app)
+      .put(`/api/answers/${answer._id}/resubmit`)
+      .set('Cookie', userCookie)
+      .send({ content: '42' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.status).toBe('pending');
+    expect(res.body.content).toBe('42');
+
+    const userAnswers = await request(app)
+      .get('/api/answers/user')
+      .set('Cookie', userCookie);
+
+    expect(userAnswers.statusCode).toBe(200);
+    expect(userAnswers.body).toBeInstanceOf(Array);
+    expect(userAnswers.body.some((a) => a.content === '42')).toBe(true);
+  });
+});
+
+================
+File: frontend/src/pages/AnswerForm.js
+================
+import React, { useState } from 'react';
+import { Form, Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+
+function AnswerForm({ questionId, answerId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
+  const [content, setContent] = useState(initialContent);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      let res;
+      if (answerId) {
+        // Resubmission
+        res = await axios.put(
+          `http://localhost:5000/api/answers/${answerId}/resubmit`,
+          { content },
+          { withCredentials: true }
+        );
+        setMessage('Answer resubmitted successfully');
+        setAlertVariant('success');
+      } else {
+        // New submission
+        res = await axios.post(
+          'http://localhost:5000/api/answers',
+          { questionId, content },
+          { withCredentials: true }
+        );
+        setMessage('Answer submitted successfully');
+        setAlertVariant('success');
+      }
+      setContent('');
+      if (onSubmitSuccess) onSubmitSuccess(res.data);
+    } catch (err) {
+      console.error('Error submitting answer:', err);
+      setMessage(err.response?.data?.message || 'Submission failed');
+      setAlertVariant('danger');
+    }
+  };
+
+  return (
+    <Form onSubmit={handleSubmit}>
+      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
+        <Form.Label>Answer</Form.Label>
+        <Form.Control
+          as="textarea"
+          rows={4}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+          placeholder="Enter your answer"
+        />
+      </Form.Group>
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: 'spring', stiffness: 300 }}
+      >
+        <Button variant="primary" type="submit">
+          {answerId ? 'Resubmit Answer' : 'Submit Answer'}
+        </Button>
+      </motion.div>
+    </Form>
+  );
+}
+
+export default AnswerForm;
+
+================
+File: frontend/src/pages/Questions.js
+================
+import React, { useState, useEffect } from 'react';
+import { Container, Form, Button, Card, Alert } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import AnswerForm from './AnswerForm';
+
+function Questions() {
+  const [questions, setQuestions] = useState([]);
+  const [filters, setFilters] = useState({
+    type: '',
+    difficulty: '',
+    tags: '',
+  });
+  const [message, setMessage] = useState('');
+  const [alertVariant, setAlertVariant] = useState('');
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [filters]);
+
+  const fetchQuestions = async () => {
+    try {
+      const query = new URLSearchParams({
+        ...(filters.type && { type: filters.type }),
+        ...(filters.difficulty && { difficulty: filters.difficulty }),
+        ...(filters.tags && { tags: filters.tags }),
+      }).toString();
+      const res = await axios.get(`http://localhost:5000/api/questions?${query}`, {
+        withCredentials: true,
+      });
+      // Prepend base URL to image paths
+      const updatedQuestions = res.data.map((q) => ({
+        ...q,
+        image: q.image ? `http://localhost:5000${q.image}` : '',
+      }));
+      setQuestions(updatedQuestions);
+    } catch (err) {
+      setMessage('Failed to fetch questions');
+      setAlertVariant('danger');
+    }
+  };
+
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
+    fetchQuestions();
+  };
+
+  return (
+    <Container className="my-5">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <h2>Questions</h2>
+        {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <Form onSubmit={handleFilterSubmit}>
+          <Form.Group className="mb-3" controlId="type">
+            <Form.Label>Type</Form.Label>
+            <Form.Select
+              value={filters.type}
+              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+            >
+              <option value="">All</option>
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="difficulty">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select
+              value={filters.difficulty}
+              onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
+            >
+              <option value="">All</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="tags">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control
+              type="text"
+              value={filters.tags}
+              onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
+            />
+          </Form.Group>
+          <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button variant="primary" type="submit">
+              Apply Filters
+            </Button>
+          </motion.div>
+        </Form>
+        <div className="mt-5">
+          {questions.map((q) => (
+            <Card key={q._id} className="mb-3">
+              <Card.Body>
+                <Card.Title>{q.questionText}</Card.Title>
+                {q.image && (
+                  <img
+                    src={q.image}
+                    alt={`Visual for question: ${q.questionText}`}
+                    className="img-fluid mb-3"
+                    style={{ maxWidth: '100%', height: 'auto', borderRadius: '6px' }}
+                  />
+                )}
+                <Card.Text>Type: {q.type}</Card.Text>
+                <Card.Text>Difficulty: {q.difficulty}</Card.Text>
+                <Card.Text>Tags: {q.tags.join(', ')}</Card.Text>
+                <AnswerForm
+                  questionId={q._id}
+                  setMessage={setMessage}
+                  setAlertVariant={setAlertVariant}
+                  onSubmitSuccess={fetchQuestions}
+                />
+              </Card.Body>
+            </Card>
+          ))}
+        </div>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Questions;
+
+================
 File: frontend/src/pages/Register.js
 ================
 import React, { useState, useContext } from 'react';
@@ -4662,722 +5263,449 @@ export default Register;
 ================
 File: docs/user-guide.md
 ================
-# CyberQA User Guide
-
-### Register
-- Navigate to `/register` to create an account.
-- Enter a unique username (3–30 characters), email, and password.
-- After successful registration, you’ll be redirected to the homepage.
+# CyberQA Admin Guide
 
 ## Login
-- Visit `/login` and enter your email and password in the sleek, centered form.
-- Redirects to `/questions` on successful login.
+- Visit `/login` and enter your admin email and password.
+- Redirects to `/admin` on successful login.
 
-## Browse and Submit Questions
-- Navigate to `/questions` to view questions in clean, animated cards.
-- Use the filter form (type, difficulty, tags) at the top to refine the list.
-- Submit answers using the textarea below each question.
-- See success (green) or error (red) alerts after submission.
+## Manage Questions
+- Navigate to `/admin` to access the Admin Dashboard.
+- **Create Question**:
+  - Fill in the form with:
+    - **Question Text**: The question content (required).
+    - **Type**: Select `multiple-choice`, `open-ended`, or `code` (required).
+    - **Cipher Type**: Optional cipher type (e.g., AES, RSA).
+    - **Difficulty**: Select `easy`, `medium`, or `hard` (required).
+    - **Tags**: Enter comma-separated tags (e.g., `crypto,network,security`). Leave blank for no tags.
+    - **Expected Answer**: The correct answer (required).
+    - **Test Cases**: Optional input/output pairs for code questions.
+    - **Source**: Optional source attribution.
+    - **Image**: Upload a JPEG/PNG image via file picker, camera (on mobile), or drag-and-drop.
+  - Click "Create Question" to save.
+- **Edit Question**:
+  - Click "Edit" on a question in the table.
+  - Update fields and click "Update Question".
+  - Click "Cancel" to discard changes.
+- **Delete Question**:
+  - Click "Delete" on a question in the table to remove it.
 
-## Profile
-- Visit `/profile` to view your username, email, XP, wallet, and submitted answers in a modern card and table layout.
+## Verify Answers
+- In the "Pending Answers" table, view pending answers with username, question text, and answer content.
+- Actions:
+  - **Verify**: Mark as `verified` to approve and award XP.
+  - **Suggest Changes**: Enter comments and mark as `rejected` for user resubmission.
+  - **Reject**: Mark as `rejected` without comments.
 
 ## Logout
-- Click "Logout" in the sticky navbar to end your session.
-
-## Resubmit Answers
-- If an admin suggests changes, a notification appears in your `/profile` page.
-- Review the admin’s comments in the “Your Answers” table.
-- Click “Resubmit” to edit your original answer, which updates the existing entry.
-- After resubmission, the page refreshes to show the updated answer.
-
-================
-File: frontend/src/pages/AnswerForm.js
-================
-import React, { useState } from 'react';
-import { Form, Button } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-
-function AnswerForm({ questionId, answerId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
-  const [content, setContent] = useState(initialContent);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      let res;
-      if (answerId) {
-        // Resubmission
-        res = await axios.put(
-          `http://localhost:5000/api/answers/${answerId}/resubmit`,
-          { content },
-          { withCredentials: true }
-        );
-        setMessage('Answer resubmitted successfully');
-        setAlertVariant('success');
-      } else {
-        // New submission
-        res = await axios.post(
-          'http://localhost:5000/api/answers',
-          { questionId, content },
-          { withCredentials: true }
-        );
-        setMessage('Answer submitted successfully');
-        setAlertVariant('success');
-      }
-      setContent('');
-      if (onSubmitSuccess) onSubmitSuccess(res.data);
-    } catch (err) {
-      console.error('Error submitting answer:', err);
-      setMessage(err.response?.data?.message || 'Submission failed');
-      setAlertVariant('danger');
-    }
-  };
-
-  return (
-    <Form onSubmit={handleSubmit}>
-      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
-        <Form.Label>Answer</Form.Label>
-        <Form.Control
-          as="textarea"
-          rows={4}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-          placeholder="Enter your answer"
-        />
-      </Form.Group>
-      <motion.div
-        whileHover={{ scale: 1.05 }}
-        transition={{ type: 'spring', stiffness: 300 }}
-      >
-        <Button variant="primary" type="submit">
-          {answerId ? 'Resubmit Answer' : 'Submit Answer'}
-        </Button>
-      </motion.div>
-    </Form>
-  );
-}
-
-export default AnswerForm;
-
-================
-File: frontend/src/pages/Questions.js
-================
-import React, { useState, useEffect } from 'react';
-import { Container, Form, Card, Alert } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import AnswerForm from './AnswerForm';
-
-function Questions() {
-  const [questions, setQuestions] = useState([]);
-  const [filters, setFilters] = useState({ type: '', difficulty: '', tags: '' });
-  const [message, setMessage] = useState('');
-  const [alertVariant, setAlertVariant] = useState('');
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 500);
-    return () => clearTimeout(handler);
-  }, [filters]);
-
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      try {
-        const res = await axios.get('http://localhost:5000/api/questions', {
-          params: debouncedFilters,
-          withCredentials: true
-        });
-        setQuestions(res.data);
-        setMessage('');
-      } catch (err) {
-        setMessage(err.response?.data?.message || 'Failed to fetch questions');
-        setAlertVariant('danger');
-      }
-    };
-    fetchQuestions();
-  }, [debouncedFilters]);
-
-  return (
-    <Container className="my-5">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h2 className="mb-4">Questions</h2>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Alert variant={alertVariant}>{message}</Alert>
-          </motion.div>
-        )}
-        <Card className="mb-4 p-4">
-          <Form>
-            <Form.Group className="mb-3" controlId="type">
-              <Form.Label>Type</Form.Label>
-              <Form.Select
-                name="type"
-                value={filters.type}
-                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              >
-                <option value="">All</option>
-                <option value="numeric">Numeric</option>
-                <option value="ciphertext">Ciphertext</option>
-                <option value="code">Code</option>
-                <option value="formula">Formula</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="difficulty">
-              <Form.Label>Difficulty</Form.Label>
-              <Form.Select
-                name="difficulty"
-                value={filters.difficulty}
-                onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
-              >
-                <option value="">All</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </Form.Select>
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="tags">
-              <Form.Label>Tags (comma-separated)</Form.Label>
-              <Form.Control
-                name="tags"
-                value={filters.tags}
-                onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
-                placeholder="Enter tags"
-              />
-            </Form.Group>
-          </Form>
-        </Card>
-        {questions.map((q) => (
-          <motion.div
-            key={q._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 * questions.indexOf(q) }}
-          >
-            <Card className="mb-3">
-              <Card.Body>
-                <Card.Title>{q.questionText}</Card.Title>
-                <Card.Text className="text-muted">
-                  Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(', ')}
-                </Card.Text>
-                <AnswerForm
-                  questionId={q._id}
-                  setMessage={setMessage}
-                  setAlertVariant={setAlertVariant}
-                />
-              </Card.Body>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Questions;
+- Click "Logout" in the navbar to end your session.
 
 ================
 File: frontend/src/pages/AdminDashboard.js
 ================
-import React, { useState, useEffect } from "react";
-import {
-  Container,
-  Form,
-  Button,
-  Card,
-  Table,
-  InputGroup,
-  Collapse,
-} from "react-bootstrap";
-import { motion } from "framer-motion";
-import axios from "axios";
-import { FaChevronDown, FaChevronUp } from "react-icons/fa";
+import React, { useState, useEffect, useRef } from 'react';
+import { Container, Form, Button, Table, Alert } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 function AdminDashboard() {
   const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState([]);
   const [newQuestion, setNewQuestion] = useState({
-    questionText: "",
-    type: "",
-    cipherType: "",
-    difficulty: "",
-    tags: "",
-    expectedAnswer: "",
+    questionText: '',
+    type: 'numeric',
+    cipherType: '',
+    difficulty: 'easy',
+    tags: '',
+    expectedAnswer: '',
     testCases: [],
-    source: "",
+    source: '',
+    image: '',
   });
-  const [editQuestion, setEditQuestion] = useState(null);
-  const [xpInputs, setXpInputs] = useState({});
-  const [commentInputs, setCommentInputs] = useState({});
-  const [openQuestionForm, setOpenQuestionForm] = useState(true);
-  const [openQuestions, setOpenQuestions] = useState(true);
-  const [openAnswers, setOpenAnswers] = useState(true);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [pendingAnswers, setPendingAnswers] = useState([]);
+  const [message, setMessage] = useState('');
+  const [alertVariant, setAlertVariant] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const dropRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [qRes, aRes] = await Promise.all([
-          axios.get("http://localhost:5000/api/questions", {
-            withCredentials: true,
-          }),
-          axios.get("http://localhost:5000/api/answers/pending", {
-            withCredentials: true,
-          }),
-        ]);
-        setQuestions(qRes.data);
-        setAnswers(aRes.data);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        alert(err.response?.data?.message || "Failed to fetch data");
-      }
-    };
-    fetchData();
+    fetchQuestions();
+    fetchPendingAnswers();
   }, []);
+
+  const fetchQuestions = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/questions', { withCredentials: true });
+      setQuestions(res.data);
+    } catch (err) {
+      setMessage('Failed to fetch questions');
+      setAlertVariant('danger');
+    }
+  };
+
+  const fetchPendingAnswers = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/answers/pending', { withCredentials: true });
+      setPendingAnswers(res.data);
+    } catch (err) {
+      setMessage('Failed to fetch pending answers');
+      setAlertVariant('danger');
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    dropRef.current.style.border = '2px dashed var(--secondary)';
+  };
+
+  const handleDragLeave = () => {
+    dropRef.current.style.border = '1px solid var(--border)';
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setImageFile(e.dataTransfer.files[0]);
+    dropRef.current.style.border = '1px solid var(--border)';
+  };
+
+  const handleImageSubmit = async () => {
+    try {
+      if (!imageFile) {
+        setMessage('Please select an image');
+        setAlertVariant('danger');
+        return;
+      }
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      const res = await axios.post('http://localhost:5000/api/questions/upload-image', formData, {
+        withCredentials: true,
+      });
+      const fullImageUrl = `http://localhost:5000${res.data.imageUrl}`;
+      setNewQuestion({ ...newQuestion, image: fullImageUrl });
+      setImageFile(null);
+      setMessage('Image uploaded successfully');
+      setAlertVariant('success');
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Image upload failed');
+      setAlertVariant('danger');
+    }
+  };
 
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      const questionData = {
-        ...newQuestion,
-        tags: newQuestion.tags.split(",").map((tag) => tag.trim()),
-      };
-      if (editQuestion) {
-        await axios.put(
-          `http://localhost:5000/api/questions/${editQuestion._id}`,
-          questionData,
+      console.log('Submitting question:', newQuestion); // Debug log for tags issue
+      if (editingQuestion) {
+        const res = await axios.put(
+          `http://localhost:5000/api/questions/${editingQuestion._id}`,
+          newQuestion,
           { withCredentials: true }
         );
-        setQuestions(
-          questions.map((q) =>
-            q._id === editQuestion._id ? { ...q, ...questionData } : q
-          )
-        );
-        setEditQuestion(null);
+        setQuestions(questions.map((q) => (q._id === editingQuestion._id ? res.data : q)));
+        setEditingQuestion(null);
+        setMessage('Question updated successfully');
       } else {
-        const res = await axios.post(
-          "http://localhost:5000/api/questions",
-          questionData,
-          { withCredentials: true }
-        );
+        const res = await axios.post('http://localhost:5000/api/questions', newQuestion, {
+          withCredentials: true,
+        });
         setQuestions([...questions, res.data]);
+        setMessage('Question created successfully');
       }
+      setAlertVariant('success');
       setNewQuestion({
-        questionText: "",
-        type: "",
-        cipherType: "",
-        difficulty: "",
-        tags: "",
-        expectedAnswer: "",
+        questionText: '',
+        type: 'numeric',
+        cipherType: '',
+        difficulty: 'easy',
+        tags: '',
+        expectedAnswer: '',
         testCases: [],
-        source: "",
+        source: '',
+        image: '',
       });
-      alert(editQuestion ? "Question updated" : "Question added");
     } catch (err) {
-      console.error('Error saving question:', err);
-      alert(err.response?.data?.message || "Failed to save question");
+      setMessage(err.response?.data?.message || 'Failed to save question');
+      setAlertVariant('danger');
     }
   };
 
   const handleEdit = (question) => {
-    setEditQuestion(question);
+    setEditingQuestion(question);
     setNewQuestion({
       questionText: question.questionText,
       type: question.type,
       cipherType: question.cipherType,
       difficulty: question.difficulty,
-      tags: question.tags.join(","),
-      expectedAnswer: question.expectedAnswer,
+      tags: question.tags.join(','),
+      expectedAnswer: question.expectedAnswer || '',
       testCases: question.testCases,
       source: question.source,
+      image: question.image,
     });
-    setOpenQuestionForm(true);
   };
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/questions/${id}`, {
-        withCredentials: true,
-      });
+      await axios.delete(`http://localhost:5000/api/questions/${id}`, { withCredentials: true });
       setQuestions(questions.filter((q) => q._id !== id));
-      alert("Question deleted");
+      setMessage('Question deleted successfully');
+      setAlertVariant('success');
     } catch (err) {
-      console.error('Error deleting question:', err);
-      alert(err.response?.data?.message || "Failed to delete question");
+      setMessage(err.response?.data?.message || 'Failed to delete question');
+      setAlertVariant('danger');
     }
   };
 
-  const handleVerify = async (answerId, status) => {
+  const handleVerifyAnswer = async (answerId, status, comments = '') => {
     try {
-      const xpEarned = status === "verified" ? xpInputs[answerId] || 10 : 0;
-      await axios.put(
+      await axios.post(
         `http://localhost:5000/api/answers/${answerId}/verify`,
-        { status, xpEarned },
+        { status, comments },
         { withCredentials: true }
       );
-      setAnswers(
-        answers.filter((a) => a._id !== answerId) // Remove from table
-      );
-      alert("Answer verified");
+      setPendingAnswers(pendingAnswers.filter((a) => a._id !== answerId));
+      setMessage(`Answer ${status} successfully`);
+      setAlertVariant('success');
     } catch (err) {
-      console.error('Error verifying answer:', err);
-      alert(err.response?.data?.message || "Verification failed");
+      setMessage(err.response?.data?.message || 'Failed to verify answer');
+      setAlertVariant('danger');
     }
   };
 
-  const handleSuggestChanges = async (answerId) => {
+  const handleSuggestChanges = async (answerId, comments) => {
     try {
-      const adminComments = commentInputs[answerId] || '';
-      await axios.put(
+      await axios.post(
         `http://localhost:5000/api/answers/${answerId}/suggest`,
-        { adminComments },
+        { comments },
         { withCredentials: true }
       );
-      setAnswers(
-        answers.filter((a) => a._id !== answerId) // Remove from table
-      );
-      setCommentInputs((prev) => {
-        const { [answerId]: _, ...rest } = prev;
-        return rest;
-      });
-      alert("Changes suggested");
+      setPendingAnswers(pendingAnswers.filter((a) => a._id !== answerId));
+      setMessage('Suggestions sent successfully');
+      setAlertVariant('success');
     } catch (err) {
-      console.error('Error suggesting changes:', err);
-      alert(err.response?.data?.message || "Failed to suggest changes");
+      setMessage(err.response?.data?.message || 'Failed to send suggestions');
+      setAlertVariant('danger');
     }
   };
 
   return (
     <Container className="my-5">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h2 className="mb-4">Admin Dashboard</h2>
-        <Button
-          variant="link"
-          onClick={() => setOpenQuestionForm(!openQuestionForm)}
-          className="p-0 mb-3 text-primary"
-        >
-          {openQuestionForm ? "Hide" : "Show"} Question Form
-        </Button>
-        <Collapse in={openQuestionForm}>
-          <div>
-            <Card className="mb-4 p-4">
-              <h3 className="mb-4">
-                {editQuestion ? "Edit Question" : "Add Question"}
-              </h3>
-              <Form onSubmit={handleQuestionSubmit}>
-                <Form.Group className="mb-3" controlId="questionText">
-                  <Form.Label>Question Text</Form.Label>
-                  <Form.Control
-                    value={newQuestion.questionText}
-                    onChange={(e) =>
-                      setNewQuestion({
-                        ...newQuestion,
-                        questionText: e.target.value,
-                      })
-                    }
-                    required
-                    placeholder="Enter question text"
-                  />
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="type">
-                  <Form.Label>Type</Form.Label>
-                  <Form.Select
-                    value={newQuestion.type}
-                    onChange={(e) =>
-                      setNewQuestion({ ...newQuestion, type: e.target.value })
-                    }
-                    required
-                  >
-                    <option value="">Select Type</option>
-                    <option value="numeric">Numeric</option>
-                    <option value="ciphertext">Ciphertext</option>
-                    <option value="code">Code</option>
-                    <option value="formula">Formula</option>
-                  </Form.Select>
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="cipherType">
-                  <Form.Label>Cipher Type</Form.Label>
-                  <Form.Control
-                    value={newQuestion.cipherType}
-                    onChange={(e) =>
-                      setNewQuestion({
-                        ...newQuestion,
-                        cipherType: e.target.value,
-                      })
-                    }
-                    placeholder="Enter cipher type (if applicable)"
-                  />
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="difficulty">
-                  <Form.Label>Difficulty</Form.Label>
-                  <Form.Select
-                    value={newQuestion.difficulty}
-                    onChange={(e) =>
-                      setNewQuestion({
-                        ...newQuestion,
-                        difficulty: e.target.value,
-                      })
-                    }
-                    required
-                  >
-                    <option value="">Select Difficulty</option>
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </Form.Select>
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="tags">
-                  <Form.Label>Tags (comma-separated)</Form.Label>
-                  <Form.Control
-                    value={newQuestion.tags}
-                    onChange={(e) =>
-                      setNewQuestion({ ...newQuestion, tags: e.target.value })
-                    }
-                    placeholder="Enter tags"
-                  />
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="expectedAnswer">
-                  <Form.Label>Expected Answer</Form.Label>
-                  <Form.Control
-                    value={newQuestion.expectedAnswer}
-                    onChange={(e) =>
-                      setNewQuestion({
-                        ...newQuestion,
-                        expectedAnswer: e.target.value,
-                      })
-                    }
-                    placeholder="Enter expected answer"
-                  />
-                </Form.Group>
-                <Form.Group className="mb-3" controlId="source">
-                  <Form.Label>Source</Form.Label>
-                  <Form.Control
-                    value={newQuestion.source}
-                    onChange={(e) =>
-                      setNewQuestion({ ...newQuestion, source: e.target.value })
-                    }
-                    placeholder="Enter source (if applicable)"
-                  />
-                </Form.Group>
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                >
-                  <Button variant="primary" type="submit">
-                    {editQuestion ? "Update Question" : "Add Question"}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <h2>Admin Dashboard</h2>
+        {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <h3>{editingQuestion ? 'Edit Question' : 'Create Question'}</h3>
+        <Form onSubmit={handleQuestionSubmit}>
+          <Form.Group className="mb-3" controlId="questionText">
+            <Form.Label>Question Text</Form.Label>
+            <Form.Control
+              as="textarea"
+              value={newQuestion.questionText}
+              onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="type">
+            <Form.Label>Type</Form.Label>
+            <Form.Select
+              value={newQuestion.type}
+              onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+            >
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="cipherType">
+            <Form.Label>Cipher Type (Optional)</Form.Label>
+            <Form.Control
+              type="text"
+              value={newQuestion.cipherType}
+              onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="difficulty">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select
+              value={newQuestion.difficulty}
+              onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="tags">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control
+              type="text"
+              value={newQuestion.tags}
+              onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="expectedAnswer">
+            <Form.Label>Expected Answer (Optional)</Form.Label>
+            <Form.Control
+              as="textarea"
+              value={newQuestion.expectedAnswer}
+              onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="testCases">
+            <Form.Label>Test Cases (Optional)</Form.Label>
+            <Form.Control
+              as="textarea"
+              value={JSON.stringify(newQuestion.testCases)}
+              onChange={(e) => {
+                try {
+                  setNewQuestion({ ...newQuestion, testCases: JSON.parse(e.target.value) || [] });
+                } catch {
+                  setMessage('Invalid test cases format');
+                  setAlertVariant('danger');
+                }
+              }}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="source">
+            <Form.Label>Source (Optional)</Form.Label>
+            <Form.Control
+              type="text"
+              value={newQuestion.source}
+              onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="image">
+            <Form.Label>Question Image (Optional)</Form.Label>
+            <div
+              ref={dropRef}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: '6px' }}
+            >
+              <Form.Control
+                type="file"
+                accept="image/jpeg,image/png"
+                capture="environment"
+                onChange={(e) => setImageFile(e.target.files[0])}
+                aria-label="Upload or capture question image"
+              />
+              <p className="text-muted">Drag and drop or click to upload/capture image (JPEG/PNG only)</p>
+            </div>
+            {imageFile && (
+              <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+                <Button onClick={handleImageSubmit} className="mt-2">
+                  Upload Image
+                </Button>
+              </motion.div>
+            )}
+            {newQuestion.image && (
+              <div className="mt-2">
+                <img
+                  src={newQuestion.image}
+                  alt="Preview of uploaded question"
+                  style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                />
+              </div>
+            )}
+          </Form.Group>
+          <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button variant="primary" type="submit">
+              {editingQuestion ? 'Update Question' : 'Create Question'}
+            </Button>
+            {editingQuestion && (
+              <Button
+                variant="secondary"
+                className="ms-2"
+                onClick={() => {
+                  setEditingQuestion(null);
+                  setNewQuestion({
+                    questionText: '',
+                    type: 'numeric',
+                    cipherType: '',
+                    difficulty: 'easy',
+                    tags: '',
+                    expectedAnswer: '',
+                    testCases: [],
+                    source: '',
+                    image: '',
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+            )}
+          </motion.div>
+        </Form>
+        <h3 className="mt-5">Questions</h3>
+        <Table striped bordered hover>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Type</th>
+              <th>Difficulty</th>
+              <th>Tags</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {questions.map((q) => (
+              <tr key={q._id}>
+                <td>{q.questionText}</td>
+                <td>{q.type}</td>
+                <td>{q.difficulty}</td>
+                <td>{q.tags.join(', ')}</td>
+                <td>
+                  <Button variant="warning" onClick={() => handleEdit(q)}>
+                    Edit
+                  </Button>{' '}
+                  <Button variant="danger" onClick={() => handleDelete(q._id)}>
+                    Delete
                   </Button>
-                </motion.div>
-                {editQuestion && (
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <Button
-                      variant="secondary"
-                      onClick={() => setEditQuestion(null)}
-                      className="ms-2"
-                    >
-                      Cancel Edit
-                    </Button>
-                  </motion.div>
-                )}
-              </Form>
-            </Card>
-          </div>
-        </Collapse>
-        <motion.button
-          onClick={() => setOpenQuestions(!openQuestions)}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="mb-3 d-flex align-items-center gap-2 btn btn-outline-primary shadow-sm"
-        >
-          {openQuestions ? <FaChevronUp /> : <FaChevronDown />}
-          {openQuestions ? "Hide Questions" : "Show Questions"}
-        </motion.button>
-        <Collapse in={openQuestions}>
-          <div>
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>Question</th>
-                  <th>Type</th>
-                  <th>Difficulty</th>
-                  <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {questions.map((q) => (
-                  <motion.tr
-                    key={q._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.3,
-                      delay: 0.1 * questions.indexOf(q),
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+        <h3 className="mt-5">Pending Answers</h3>
+        <Table striped bordered hover>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pendingAnswers.map((a) => (
+              <tr key={a._id}>
+                <td>{a.userId?.username || 'Unknown'}</td>
+                <td>{a.questionId?.questionText || 'Unknown'}</td>
+                <td>{a.content}</td>
+                <td>
+                  <Button variant="success" onClick={() => handleVerifyAnswer(a._id, 'verified')}>
+                    Verify
+                  </Button>{' '}
+                  <Button
+                    variant="warning"
+                    onClick={() => {
+                      const comments = prompt('Enter suggestions for resubmission:');
+                      if (comments) handleSuggestChanges(a._id, comments);
                     }}
                   >
-                    <td>{q.questionText}</td>
-                    <td>{q.type}</td>
-                    <td>{q.difficulty}</td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                      <motion.div
-                        className="d-flex gap-2"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ scale: 1.03 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <Button
-                          variant="outline-warning"
-                          size="sm"
-                          onClick={() => handleEdit(q)}
-                        >
-                          ✏️ Edit
-                        </Button>
-                        <Button
-                          variant="outline-danger"
-                          size="sm"
-                          onClick={() => handleDelete(q._id)}
-                        >
-                          🗑️ Delete
-                        </Button>
-                      </motion.div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </Collapse>
-        <Button
-          variant="link"
-          onClick={() => setOpenAnswers(!openAnswers)}
-          className="p-0 mb-3 text-primary"
-        >
-          {openAnswers ? "Hide" : "Show"} Pending Answers
-        </Button>
-        <Collapse in={openAnswers}>
-          <div>
-            <Table striped bordered hover responsive>
-              <thead>
-                <tr>
-                  <th>Username</th>
-                  <th>Question</th>
-                  <th>Answer</th>
-                  <th>Status</th>
-                  <th>XP</th>
-                  <th>Comments</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {answers.map((a) => (
-                  <motion.tr
-                    key={a._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.3,
-                      delay: 0.1 * answers.indexOf(a),
-                    }}
-                  >
-                    <td>{a.userId?.username || "N/A"}</td>
-                    <td>{a.questionId?.questionText || "N/A"}</td>
-                    <td>{a.content}</td>
-                    <td>{a.status}</td>
-                    <td>
-                      <InputGroup>
-                        <Form.Control
-                          type="number"
-                          value={xpInputs[a._id] || ""}
-                          onChange={(e) =>
-                            setXpInputs({
-                              ...xpInputs,
-                              [a._id]: parseInt(e.target.value) || 0,
-                            })
-                          }
-                          placeholder="Enter XP"
-                          disabled={a.status !== "pending"}
-                        />
-                      </InputGroup>
-                    </td>
-                    <td>
-                      <InputGroup>
-                        <Form.Control
-                          type="text"
-                          value={commentInputs[a._id] || ""}
-                          onChange={(e) =>
-                            setCommentInputs({
-                              ...commentInputs,
-                              [a._id]: e.target.value,
-                            })
-                          }
-                          placeholder="Enter suggestions"
-                          disabled={a.status !== "pending"}
-                        />
-                      </InputGroup>
-                    </td>
-                    <td>
-                      {a.status === "pending" && (
-                        <>
-                          <motion.div
-                            whileHover={{ scale: 1.05 }}
-                            transition={{ type: "spring", stiffness: 300 }}
-                          >
-                            <Button
-                              variant="success"
-                              onClick={() => handleVerify(a._id, "verified")}
-                              className="me-2"
-                            >
-                              Verify
-                            </Button>
-                          </motion.div>
-                          <motion.div
-                            whileHover={{ scale: 1.05 }}
-                            transition={{ type: "spring", stiffness: 300 }}
-                          >
-                            <Button
-                              variant="danger"
-                              onClick={() => handleVerify(a._id, "rejected")}
-                              className="me-2"
-                            >
-                              Reject
-                            </Button>
-                          </motion.div>
-                          <motion.div
-                            whileHover={{ scale: 1.05 }}
-                            transition={{ type: "spring", stiffness: 300 }}
-                          >
-                            <Button
-                              variant="warning"
-                              onClick={() => handleSuggestChanges(a._id)}
-                            >
-                              Suggest Changes
-                            </Button>
-                          </motion.div>
-                        </>
-                      )}
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </Collapse>
+                    Suggest Changes
+                  </Button>{' '}
+                  <Button variant="danger" onClick={() => handleVerifyAnswer(a._id, 'rejected')}>
+                    Reject
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
       </motion.div>
     </Container>
   );

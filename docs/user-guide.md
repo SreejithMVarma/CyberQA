@@ -1,28 +1,36 @@
-# CyberQA User Guide
-
-### Register
-- Navigate to `/register` to create an account.
-- Enter a unique username (3–30 characters, alphanumeric, underscores, or hyphens only, e.g., CyberNinja or john_doe), email, and password.
-- After successful registration, you’ll be redirected to the homepage.
+# CyberQA Admin Guide
 
 ## Login
-- Visit `/login` and enter your email and password in the sleek, centered form.
-- Redirects to `/questions` on successful login.
+- Visit `/login` and enter your admin email and password.
+- Redirects to `/admin` on successful login.
 
-## Browse and Submit Questions
-- Navigate to `/questions` to view questions in clean, animated cards.
-- Use the filter form (type, difficulty, tags) at the top to refine the list.
-- Submit answers using the textarea below each question.
-- See success (green) or error (red) alerts after submission.
+## Manage Questions
+- Navigate to `/admin` to access the Admin Dashboard.
+- **Create Question**:
+  - Fill in the form with:
+    - **Question Text**: The question content (required).
+    - **Type**: Select `multiple-choice`, `open-ended`, or `code` (required).
+    - **Cipher Type**: Optional cipher type (e.g., AES, RSA).
+    - **Difficulty**: Select `easy`, `medium`, or `hard` (required).
+    - **Tags**: Enter comma-separated tags (e.g., `crypto,network,security`). Leave blank for no tags.
+    - **Expected Answer**: The correct answer (required).
+    - **Test Cases**: Optional input/output pairs for code questions.
+    - **Source**: Optional source attribution.
+    - **Image**: Upload a JPEG/PNG image via file picker, camera (on mobile), or drag-and-drop.
+  - Click "Create Question" to save.
+- **Edit Question**:
+  - Click "Edit" on a question in the table.
+  - Update fields and click "Update Question".
+  - Click "Cancel" to discard changes.
+- **Delete Question**:
+  - Click "Delete" on a question in the table to remove it.
 
-## Profile
-- Visit `/profile` to view your username, email, XP, wallet, and submitted answers in a modern card and table layout.
+## Verify Answers
+- In the "Pending Answers" table, view pending answers with username, question text, and answer content.
+- Actions:
+  - **Verify**: Mark as `verified` to approve and award XP.
+  - **Suggest Changes**: Enter comments and mark as `rejected` for user resubmission.
+  - **Reject**: Mark as `rejected` without comments.
 
 ## Logout
-- Click "Logout" in the sticky navbar to end your session.
-
-## Resubmit Answers
-- If an admin suggests changes, a notification appears in your `/profile` page.
-- Review the admin’s comments in the “Your Answers” table.
-- Click “Resubmit” to edit your original answer, which updates the existing entry.
-- After resubmission, the page refreshes to show the updated answer.
+- Click "Logout" in the navbar to end your session.

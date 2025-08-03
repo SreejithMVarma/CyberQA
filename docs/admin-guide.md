@@ -1,23 +1,36 @@
 # CyberQA Admin Guide
 
-## Access Dashboard
-- Log in with an admin account (set `role: 'admin'` in MongoDB).
-- Visit `/admin` to access the modern admin dashboard.
+## Login
+- Visit `/login` and enter your admin email and password.
+- Redirects to `/admin` on successful login.
 
 ## Manage Questions
-- Toggle the "Question Form" to add or edit questions in a clean form.
-- Fill in fields (question text, type, difficulty, etc.) and submit.
-- Edit or delete questions in the responsive table below (click "Edit" or "Delete").
+- Navigate to `/admin` to access the Admin Dashboard.
+- **Create Question**:
+  - Fill in the form with:
+    - **Question Text**: The question content (required).
+    - **Type**: Select `numeric`, `ciphertext`, `code`, or `formula` (required).
+    - **Cipher Type**: Optional cipher type (e.g., AES, RSA).
+    - **Difficulty**: Select `easy`, `medium`, or `hard` (required).
+    - **Tags**: Enter comma-separated tags (e.g., `crypto,network,security`). Leave blank for no tags.
+    - **Expected Answer**: Optional answer for verification.
+    - **Test Cases**: Optional JSON array of input/output pairs (e.g., `[{"input":"1","output":"2"}]`) for code questions.
+    - **Source**: Optional source attribution.
+    - **Image**: Upload a JPEG/PNG image via file picker, camera (on mobile), or drag-and-drop. The preview appears after upload.
+  - Click "Create Question" to save.
+- **Edit Question**:
+  - Click "Edit" on a question in the table.
+  - Update fields and click "Update Question".
+  - Click "Cancel" to discard changes.
+- **Delete Question**:
+  - Click "Delete" on a question in the table to remove it.
 
 ## Verify Answers
-- Toggle the "Pending Answers" section to view pending answers.
-- Enter custom XP values and click "Verify" (green) or "Reject" (red).
-- Animated alerts confirm actions.
-  
-### Verify Answers
-- Navigate to `/admin` to view all pending answers in the “Pending Answers” table.
-- The table displays the submitter’s username, question, answer, status, XP input, and comments.
-- For each answer, you can:
-  - Enter XP and click “Verify” to approve.
-  - Click “Reject” to decline without comments.
-  - Enter suggestions in the “Comments” field and click “Suggest Changes” to request resubmission.
+- In the "Pending Answers" table, view pending answers with username, question text, and answer content.
+- Actions:
+  - **Verify**: Mark as `verified` to approve and award XP.
+  - **Suggest Changes**: Enter comments and mark as `rejected` for user resubmission.
+  - **Reject**: Mark as `rejected` without comments.
+
+## Logout
+- Click "Logout" in the navbar to end your session.
