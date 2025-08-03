@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Container, Form, Button, Card, Alert } from "react-bootstrap";
 import { motion } from "framer-motion";
 import axios from "axios";
-import AnswerForm from "./AnswerForm";
+import AnswerForm from "../components/AnswerForm";
 
 function Questions() {
   const [questions, setQuestions] = useState([]);

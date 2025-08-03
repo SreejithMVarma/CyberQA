@@ -9,6 +9,7 @@ import Questions from './pages/Questions';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
 import Navbar from './components/Navbar';
+import QuestionDetail from './pages/QuestionDetail';
 
 function App() {
   const { user, loading } = useContext(AuthContext);
@@ -26,6 +27,7 @@ function App() {
           <Route path="/questions" element={user ? <Questions /> : <Navigate to="/login" />} />
           <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
           <Route path="/admin" element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" />} />
+          <Route path="/questions/:id" element={<QuestionDetail />} />
         </Routes>
       </motion.div>
     </Router>

@@ -3,7 +3,7 @@ import { Container, Card, Table, Alert, Badge, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
-import AnswerForm from './AnswerForm';
+import AnswerForm from '../components/AnswerForm';
 
 function Profile() {
   const { user } = useContext(AuthContext);

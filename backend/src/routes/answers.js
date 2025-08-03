@@ -3,18 +3,33 @@ const Answer = require('../models/Answer');
 const User = require('../models/User');
 const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '..', process.env.STORAGE_PATH));
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
+const upload = multer({ storage });
 
 // Submit answer (users)
-router.post('/', isAuthenticated, async (req, res) => {
+router.post('/', isAuthenticated, upload.single('image'), async (req, res) => {
   try {
     const { questionId, content } = req.body;
     if (!questionId || !content) {
       return res.status(400).json({ message: 'questionId and content are required' });
     }
+    const image = req.file ? `${process.env.STORAGE_PATH}/${req.file.filename}` : null;
+
     const answer = new Answer({
       questionId,
       userId: req.user.id,
       content,
+      image,
     });
     await answer.save();
     res.status(201).json(answer);
@@ -65,18 +80,20 @@ router.put('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // Resubmit answer (users, only for their own answers)
-router.put('/:id/resubmit', isAuthenticated, async (req, res) => {
+router.put('/:id/resubmit', isAuthenticated, upload.single('image'), async (req, res) => {
   try {
     const { content } = req.body;
     if (!content) {
       return res.status(400).json({ message: 'content is required' });
     }
+    const image = req.file ? `${process.env.STORAGE_PATH}/${req.file.filename}` : null;
     const answer = await Answer.findById(req.params.id);
     if (!answer) return res.status(404).json({ message: 'Answer not found' });
     if (answer.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Unauthorized to resubmit this answer' });
     }
     answer.content = content;
+    answer.image = image || answer.image; // Keep existing image if no new one uploaded
     answer.status = 'pending';
     answer.adminComments = '';
     await answer.save();
