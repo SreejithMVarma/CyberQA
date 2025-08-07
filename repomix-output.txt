@@ -57,6 +57,7 @@ backend/src/routes/answers.js
 backend/src/routes/auth.js
 backend/src/routes/questions.js
 backend/src/server.js
+backend/tests/answerImageUpload.test.js
 backend/tests/answers.test.js
 backend/tests/app.test.js
 backend/tests/auth.test.js
@@ -79,16 +80,19 @@ frontend/src/__tests__/Questions.test.js
 frontend/src/App.css
 frontend/src/App.js
 frontend/src/App.test.js
+frontend/src/components/AnswerForm.js
 frontend/src/components/Navbar.js
+frontend/src/components/Pagination.js
 frontend/src/context/AuthContext.js
 frontend/src/index.css
 frontend/src/index.js
 frontend/src/logo.svg
 frontend/src/pages/AdminDashboard.js
-frontend/src/pages/AnswerForm.js
+frontend/src/pages/EditQuestion.js
 frontend/src/pages/Home.js
 frontend/src/pages/Login.js
 frontend/src/pages/Profile.js
+frontend/src/pages/QuestionDetail.js
 frontend/src/pages/Questions.js
 frontend/src/pages/Register.js
 frontend/src/reportWebVitals.js
@@ -99,6 +103,325 @@ repomix-output-v5.txt
 ================================================================
 Files
 ================================================================
+
+================
+File: frontend/src/components/Pagination.js
+================
+import { Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+
+function Pagination({ currentPage, totalPages, onPageChange }) {
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+  return (
+    <div className="flex justify-center mt-4 space-x-2">
+      {pages.map((page) => (
+        <motion.div
+          key={page}
+          whileHover={{ scale: 1.1 }}
+          transition={{ type: 'spring', stiffness: 300 }}
+        >
+          <Button
+            variant={page === currentPage ? 'primary' : 'outline-primary'}
+            onClick={() => onPageChange(page)}
+            className="px-3 py-1"
+          >
+            {page}
+          </Button>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+export default Pagination;
+
+================
+File: frontend/src/pages/EditQuestion.js
+================
+import { useState, useEffect, useRef } from "react";
+import { Container, Form, Button, Alert } from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+import { useParams, useNavigate } from "react-router-dom";
+
+function EditQuestion() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [question, setQuestion] = useState({
+    questionText: "",
+    type: "numeric",
+    cipherType: "",
+    difficulty: "easy",
+    tags: "",
+    expectedAnswer: "",
+    testCases: [],
+    source: "",
+    image: "",
+  });
+  const [message, setMessage] = useState("");
+  const [alertVariant, setAlertVariant] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const dropRef = useRef(null);
+
+  useEffect(() => {
+    const fetchQuestion = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:5000/api/questions/${id}`,
+          {
+            withCredentials: true,
+          }
+        );
+        setQuestion({
+          questionText: res.data.questionText,
+          type: res.data.type,
+          cipherType: res.data.cipherType || "",
+          difficulty: res.data.difficulty,
+          tags: res.data.tags.join(","),
+          expectedAnswer: res.data.expectedAnswer || "",
+          testCases: res.data.testCases || [],
+          source: res.data.source || "",
+          image: res.data.image || "",
+        });
+      } catch (err) {
+        setMessage(err.response?.data?.message || "Failed to load question");
+        setAlertVariant("danger");
+      }
+    };
+    fetchQuestion();
+  }, [id]);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    dropRef.current.style.border = "2px dashed var(--secondary)";
+  };
+
+  const handleDragLeave = () => {
+    dropRef.current.style.border = "1px solid var(--border)";
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setImageFile(e.dataTransfer.files[0]);
+    dropRef.current.style.border = "1px solid var(--border)";
+  };
+
+  const handleImageSubmit = async () => {
+    try {
+      if (!imageFile) {
+        setMessage("Please select an image");
+        setAlertVariant("danger");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("image", imageFile);
+      const res = await axios.post(
+        "http://localhost:5000/api/questions/upload-image",
+        formData,
+        {
+          withCredentials: true,
+        }
+      );
+      const fullImageUrl = `http://localhost:5000${res.data.imageUrl}`;
+      setQuestion({ ...question, image: fullImageUrl });
+      setImageFile(null);
+      setMessage("Image uploaded successfully");
+      setAlertVariant("success");
+    } catch (err) {
+      setMessage(err.response?.data?.message || "Image upload failed");
+      setAlertVariant("danger");
+    }
+  };
+
+  const handleQuestionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.put(`http://localhost:5000/api/questions/${id}`, question, {
+        withCredentials: true,
+      });
+      setMessage("Question updated successfully");
+      setAlertVariant("success");
+      navigate("/admin");
+    } catch (err) {
+      setMessage(err.response?.data?.message || "Failed to update question");
+      setAlertVariant("danger");
+    }
+  };
+
+  return (
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2>Edit Question</h2>
+        {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <Form onSubmit={handleQuestionSubmit}>
+          <Form.Group className="mb-3" controlId="questionText">
+            <Form.Label>Question Text</Form.Label>
+            <Form.Control
+              as="textarea"
+              value={question.questionText}
+              onChange={(e) =>
+                setQuestion({ ...question, questionText: e.target.value })
+              }
+              required
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="type">
+            <Form.Label>Type</Form.Label>
+            <Form.Select
+              value={question.type}
+              onChange={(e) =>
+                setQuestion({ ...question, type: e.target.value })
+              }
+            >
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="cipherType">
+            <Form.Label>Cipher Type (Optional)</Form.Label>
+            <Form.Control
+              type="text"
+              value={question.cipherType}
+              onChange={(e) =>
+                setQuestion({ ...question, cipherType: e.target.value })
+              }
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="difficulty">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select
+              value={question.difficulty}
+              onChange={(e) =>
+                setQuestion({ ...question, difficulty: e.target.value })
+              }
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="tags">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control
+              type="text"
+              value={question.tags}
+              onChange={(e) =>
+                setQuestion({ ...question, tags: e.target.value })
+              }
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="expectedAnswer">
+            <Form.Label>Expected Answer (Optional)</Form.Label>
+            <Form.Control
+              as="textarea"
+              value={question.expectedAnswer}
+              onChange={(e) =>
+                setQuestion({ ...question, expectedAnswer: e.target.value })
+              }
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="testCases">
+            <Form.Label>Test Cases (Optional)</Form.Label>
+            <Form.Control
+              as="textarea"
+              value={JSON.stringify(question.testCases)}
+              onChange={(e) => {
+                try {
+                  setQuestion({
+                    ...question,
+                    testCases: JSON.parse(e.target.value) || [],
+                  });
+                } catch {
+                  setMessage("Invalid test cases format");
+                  setAlertVariant("danger");
+                }
+              }}
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="source">
+            <Form.Label>Source (Optional)</Form.Label>
+            <Form.Control
+              type="text"
+              value={question.source}
+              onChange={(e) =>
+                setQuestion({ ...question, source: e.target.value })
+              }
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="image">
+            <Form.Label>Question Image (Optional)</Form.Label>
+            <div
+              ref={dropRef}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              style={{
+                border: "1px solid var(--border)",
+                padding: "1rem",
+                borderRadius: "6px",
+              }}
+            >
+              <Form.Control
+                type="file"
+                accept="image/jpeg,image/png"
+                capture="environment"
+                onChange={(e) => setImageFile(e.target.files[0])}
+                aria-label="Upload or capture question image"
+              />
+              <p className="text-muted">
+                Drag and drop or click to upload/capture image (JPEG/PNG only)
+              </p>
+            </div>
+            {imageFile && (
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                transition={{ type: "spring", stiffness: 300 }}
+              >
+                <Button onClick={handleImageSubmit} className="mt-2">
+                  Upload Image
+                </Button>
+              </motion.div>
+            )}
+            {question.image && (
+              <div className="mt-2">
+                <img
+                  src={question.image}
+                  alt="Preview of uploaded question"
+                  style={{
+                    maxWidth: "200px",
+                    height: "auto",
+                    borderRadius: "6px",
+                  }}
+                />
+              </div>
+            )}
+          </Form.Group>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300 }}
+            style={{ display: "inline-block", transformOrigin: "center" }}
+          >
+            <Button variant="primary" type="submit" className="me-2">
+              Update Question
+            </Button>
+            <Button variant="secondary" onClick={() => navigate("/admin")}>
+              Cancel
+            </Button>
+          </motion.div>
+        </Form>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default EditQuestion;
 
 ================
 File: .gitignore
@@ -180,6 +503,62 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+================
+File: backend/tests/answerImageUpload.test.js
+================
+const request = require('supertest');
+const app = require('../app');
+const mongoose = require('mongoose');
+const User = require('../models/User');
+const Question = require('../models/Question');
+
+describe('Answer Image Upload', () => {
+  let token;
+  let questionId;
+
+  beforeAll(async () => {
+    await mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+
+    // Create a test user
+    const user = await User.create({
+      username: 'testuser',
+      email: 'test@example.com',
+      password: 'hashedpassword', // Note: Use bcrypt in actual setup
+    });
+
+    // Login to get token
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'test@example.com', password: 'password123' });
+    token = loginRes.body.token;
+
+    // Create a test question
+    const question = await Question.create({
+      title: 'Test Question',
+      content: 'Test Content',
+      userId: user._id,
+    });
+    questionId = question._id;
+  });
+
+  it('should upload an answer with an image', async () => {
+    const res = await request(app)
+      .post('/api/answers')
+      .set('Authorization', `Bearer ${token}`)
+      .attach('image', 'tests/fixtures/test-image.jpg')
+      .field('content', 'Test answer')
+      .field('questionId', questionId);
+    expect(res.statusCode).toBe(201);
+    expect(res.body.image).toContain('/uploads/');
+    expect(res.body.content).toBe('Test answer');
+    expect(res.body.questionId).toEqual(questionId.toString());
+  });
+
+  afterAll(async () => {
+    await mongoose.connection.close();
+  });
 });
 
 ================
@@ -551,35 +930,13 @@ File: frontend/public/index.html
       content="Web site created using create-react-app"
     />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
     <title>React App</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
   </body>
 </html>
 
@@ -741,9 +1098,448 @@ test('renders learn react link', () => {
 });
 
 ================
+File: frontend/src/components/AnswerForm.js
+================
+import React, { useState, useRef } from "react";
+import { Form, Button, Alert, Image } from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+
+function AnswerForm({
+  questionId,
+  answerId,
+  setMessage,
+  setAlertVariant,
+  initialContent = "",
+  onSubmitSuccess,
+}) {
+  const [content, setContent] = useState(initialContent);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const dropRef = useRef(null);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    dropRef.current.style.border = "2px dashed #6c757d";
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    dropRef.current.style.border = "2px solid #ced4da";
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+      dropRef.current.style.border = "2px solid #ced4da";
+    } else {
+      setMessage("Please upload an image file");
+      setAlertVariant("danger");
+    }
+  };
+
+  const handleCameraCapture = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith("image/")) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    } else {
+      setMessage("Please upload an image file");
+      setAlertVariant("danger");
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    console.log("Submitting answer for questionId:", questionId); // Debug
+    const formData = new FormData();
+    formData.append("content", content);
+    formData.append("questionId", questionId);
+    if (imageFile) {
+      formData.append("image", imageFile);
+    }
+
+    try {
+      let res;
+      if (answerId) {
+        // Resubmission
+        formData.delete("questionId");
+        res = await axios.put(
+          `http://localhost:5000/api/answers/${answerId}/resubmit`,
+          formData,
+          { withCredentials: true }
+        );
+        setMessage("Answer resubmitted successfully");
+        setAlertVariant("success");
+      } else {
+        // New submission
+        res = await axios.post("http://localhost:5000/api/answers", formData, {
+          withCredentials: true,
+        });
+        setMessage("Answer submitted successfully");
+        setAlertVariant("success");
+      }
+      setContent("");
+      setImageFile(null);
+      setImagePreview(null);
+      if (onSubmitSuccess) onSubmitSuccess(res.data);
+    } catch (err) {
+      console.error("Error submitting answer:", err);
+      setMessage(err.response?.data?.message || "Submission failed");
+      setAlertVariant("danger");
+    }
+  };
+
+  // Unique ID for file input
+  const fileInputId = `imageUpload-${questionId}`;
+
+  return (
+    <Form onSubmit={handleSubmit}>
+      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
+        <Form.Label>Answer</Form.Label>
+        <Form.Control
+          as="textarea"
+          rows={4}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          required
+          placeholder="Enter your answer"
+        />
+      </Form.Group>
+      <Form.Group className="mb-3">
+        <Form.Label>Answer Image (Optional)</Form.Label>
+        <div
+          ref={dropRef}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          style={{
+            border: "2px solid #ced4da",
+            borderRadius: "6px",
+            padding: "20px",
+            textAlign: "center",
+            cursor: "pointer",
+            backgroundColor: "#f8f9fa",
+          }}
+        >
+          {imageFile ? (
+            <p>Selected: {imageFile.name}</p>
+          ) : (
+            <p>Drop image here or click to upload</p>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleCameraCapture}
+            style={{ display: "none" }}
+            id={fileInputId}
+          />
+          <Form.Label
+            htmlFor={fileInputId}
+            style={{ cursor: "pointer", color: "#007bff" }}
+          >
+            Choose Image
+          </Form.Label>
+        </div>
+        {imagePreview && (
+          <div className="mt-3" style={{ textAlign: "center" }}>
+            <Image
+              src={imagePreview}
+              alt="Uploaded answer preview"
+              thumbnail
+              style={{
+                maxWidth: "150px",
+                maxHeight: "150px",
+                border: "1px solid #ced4da",
+                borderRadius: "4px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            />
+          </div>
+        )}
+      </Form.Group>
+      <motion.div
+        whileHover={{ scale: 1.05 }}
+        transition={{ type: "spring", stiffness: 300 }}
+        style={{ display: "inline-block", transformOrigin: "center" }}
+      >
+        <Button variant="primary" type="submit">
+          {answerId ? "Resubmit Answer" : "Submit Answer"}
+        </Button>
+      </motion.div>
+    </Form>
+  );
+}
+
+export default AnswerForm;
+
+================
 File: frontend/src/logo.svg
 ================
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
+
+================
+File: frontend/src/pages/QuestionDetail.js
+================
+import React, { useState, useEffect, useContext } from 'react';
+import { useParams } from 'react-router-dom';
+import { Container, Alert, Card, Button, Modal } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import AnswerForm from '../components/AnswerForm';
+import { AuthContext } from '../context/AuthContext';
+
+function QuestionDetail() {
+  const { id } = useParams();
+  const { user } = useContext(AuthContext);
+  const [question, setQuestion] = useState(null);
+  const [answers, setAnswers] = useState([]);
+  const [message, setMessage] = useState('');
+  const [alertVariant, setAlertVariant] = useState('');
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
+
+  const BASE_URL = 'http://localhost:5000';
+
+  useEffect(() => {
+    const fetchQuestion = async () => {
+      try {
+        const res = await axios.get(`${BASE_URL}/api/questions/${id}`, {
+          withCredentials: true,
+        });
+        setQuestion(res.data);
+      } catch (err) {
+        setMessage(err.response?.data?.message || 'Failed to load question');
+        setAlertVariant('danger');
+      }
+    };
+    const fetchAnswers = async () => {
+      try {
+        const res = await axios.get(`${BASE_URL}/api/answers/question/${id}`, {
+          withCredentials: true,
+        });
+        setAnswers(res.data || []);
+      } catch (err) {
+        setMessage(err.response?.data?.message || 'Failed to load answers');
+        setAlertVariant('danger');
+      }
+    };
+    fetchQuestion();
+    fetchAnswers();
+  }, [id]);
+
+  const handleVerifyAnswer = async (answerId, status, comments = '') => {
+    try {
+      await axios.post(
+        `${BASE_URL}/api/answers/${answerId}/verify`,
+        { status, comments, xpEarned: status === 'verified' ? 10 : 0 },
+        { withCredentials: true }
+      );
+      setMessage(`Answer ${status} successfully`);
+      setAlertVariant('success');
+      const res = await axios.get(`${BASE_URL}/api/answers/question/${id}`, {
+        withCredentials: true,
+      });
+      setAnswers(res.data || []);
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Failed to verify answer');
+      setAlertVariant('danger');
+    }
+  };
+
+  const handleSuggestChanges = async (answerId, comments) => {
+    try {
+      await axios.post(
+        `${BASE_URL}/api/answers/${answerId}/suggest`,
+        { comments },
+        { withCredentials: true }
+      );
+      setMessage('Suggestions sent successfully');
+      setAlertVariant('success');
+      const res = await axios.get(`${BASE_URL}/api/answers/question/${id}`, {
+        withCredentials: true,
+      });
+      setAnswers(res.data || []);
+    } catch (err) {
+      setMessage(err.response?.data?.message || 'Failed to send suggestions');
+      setAlertVariant('danger');
+    }
+  };
+
+  const handleImageClick = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setShowImageModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowImageModal(false);
+    setSelectedImage('');
+  };
+
+  if (!question) return <div>Loading...</div>;
+
+  const verifiedAnswer = answers.find((a) => a.status === 'verified');
+  const pendingAnswers = answers.filter((a) => a.status === 'pending');
+
+  return (
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <Card className="mb-4">
+          <Card.Body>
+            <Card.Title>{question.questionText}</Card.Title>
+            <Card.Text>{question.content}</Card.Text>
+            {question.image && (
+              <img
+                src={`${BASE_URL}${question.image}`}
+                alt={`Visual for question: ${question.questionText}`}
+                className="img-fluid mb-3 cursor-pointer"
+                style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                onClick={() => handleImageClick(`${BASE_URL}${question.image}`)}
+              />
+            )}
+            <Card.Text>Type: {question.type}</Card.Text>
+            <Card.Text>Difficulty: {question.difficulty}</Card.Text>
+            <Card.Text>Tags: {question.tags.join(', ')}</Card.Text>
+          </Card.Body>
+        </Card>
+
+        {user?.role === 'admin' ? (
+          <>
+            <h4>Answers</h4>
+            {verifiedAnswer ? (
+              <Card className="mb-3">
+                <Card.Body>
+                  <Card.Subtitle className="mb-2 text-muted">
+                    Username: {verifiedAnswer.userId?.username || 'Unknown'}
+                  </Card.Subtitle>
+                  <Card.Text>{verifiedAnswer.content}</Card.Text>
+                  {verifiedAnswer.image && (
+                    <img
+                      src={`${BASE_URL}${verifiedAnswer.image}`}
+                      alt="Verified answer"
+                      className="img-fluid mb-3 cursor-pointer"
+                      style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                      onClick={() => handleImageClick(`${BASE_URL}${verifiedAnswer.image}`)}
+                    />
+                  )}
+                </Card.Body>
+              </Card>
+            ) : pendingAnswers.length > 0 ? (
+              pendingAnswers.map((a) => (
+                <Card key={a._id} className="mb-3">
+                  <Card.Body>
+                    <Card.Subtitle className="mb-2 text-muted">
+                      Username: {a.userId?.username || 'Unknown'}
+                    </Card.Subtitle>
+                    <Card.Text>{a.content}</Card.Text>
+                    {a.image && (
+                      <img
+                        src={`${BASE_URL}${a.image}`}
+                        alt="Answer"
+                        className="img-fluid mb-3 cursor-pointer"
+                        style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                        onClick={() => handleImageClick(`${BASE_URL}${a.image}`)}
+                      />
+                    )}
+                    <div className="mt-2">
+                      <Button
+                        variant="success"
+                        onClick={() => handleVerifyAnswer(a._id, 'verified')}
+                        className="me-2"
+                      >
+                        Verify
+                      </Button>
+                      <Button
+                        variant="warning"
+                        onClick={() => {
+                          const comments = prompt('Enter suggestions for resubmission:');
+                          if (comments) handleSuggestChanges(a._id, comments);
+                        }}
+                        className="me-2"
+                      >
+                        Suggest Changes
+                      </Button>
+                      <Button
+                        variant="danger"
+                        onClick={() => handleVerifyAnswer(a._id, 'rejected')}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              ))
+            ) : (
+              <p>No answers submitted yet.</p>
+            )}
+          </>
+        ) : (
+          <>
+            {verifiedAnswer ? (
+              <>
+                <h4>Verified Answer</h4>
+                <Card>
+                  <Card.Body>
+                    <Card.Subtitle className="mb-2 text-muted">
+                      Username: {verifiedAnswer.userId?.username || 'Unknown'}
+                    </Card.Subtitle>
+                    <Card.Text>{verifiedAnswer.content}</Card.Text>
+                    {verifiedAnswer.image && (
+                      <img
+                        src={`${BASE_URL}${verifiedAnswer.image}`}
+                        alt="Verified answer"
+                        className="img-fluid mb-3 cursor-pointer"
+                        style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                        onClick={() => handleImageClick(`${BASE_URL}${verifiedAnswer.image}`)}
+                      />
+                    )}
+                  </Card.Body>
+                </Card>
+              </>
+            ) : (
+              <>
+                <h4>Submit Your Answer</h4>
+                <AnswerForm
+                  questionId={id}
+                  setMessage={setMessage}
+                  setAlertVariant={setAlertVariant}
+                  onSubmitSuccess={() => setMessage('Answer submitted!')}
+                />
+              </>
+            )}
+          </>
+        )}
+
+        <Modal show={showImageModal} onHide={handleCloseModal} centered>
+          <Modal.Body>
+            <img
+              src={selectedImage}
+              alt="Enlarged view"
+              className="img-fluid"
+              style={{ maxWidth: '100%', height: 'auto' }}
+            />
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Close
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      </motion.div>
+    </Container>
+  );
+}
+
+export default QuestionDetail;
 
 ================
 File: frontend/src/reportWebVitals.js
@@ -3472,23 +4268,6 @@ End of Codebase
 ================================================================
 
 ================
-File: backend/src/models/Answer.js
-================
-const mongoose = require('mongoose');
-
-const answerSchema = new mongoose.Schema({
-  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  content: { type: String, required: true },
-  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
-  xpEarned: { type: Number, default: 0 },
-  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' },
-  adminComments: { type: String, default: '' }
-});
-
-module.exports = mongoose.model('Answer', answerSchema);
-
-================
 File: backend/src/models/User.js
 ================
 const mongoose = require('mongoose');
@@ -3913,6 +4692,24 @@ code {
 }
 
 ================
+File: backend/src/models/Answer.js
+================
+const mongoose = require('mongoose');
+
+const answerSchema = new mongoose.Schema({
+  questionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  content: { type: String, required: true },
+  image: { type: String },
+  status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+  xpEarned: { type: Number, default: 0 },
+  verificationMethod: { type: String, enum: ['manual', 'auto'], default: 'manual' },
+  adminComments: { type: String, default: '' }
+});
+
+module.exports = mongoose.model('Answer', answerSchema);
+
+================
 File: backend/src/models/Question.js
 ================
 const mongoose = require('mongoose');
@@ -3937,77 +4734,101 @@ module.exports = mongoose.model('Question', questionSchema);
 File: backend/src/routes/questions.js
 ================
 const express = require('express');
-const mongoose = require('mongoose');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const Question = require('../models/Question');
+const Answer = require('../models/Answer');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 
-// Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    cb(null, path.join(__dirname, '..', process.env.STORAGE_PATH));
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${file.originalname}`;
-    cb(null, uniqueName);
+    cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png/;
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = filetypes.test(file.mimetype);
-    if (extname && mimetype) {
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    if (mimetype && extname) {
       return cb(null, true);
     }
     cb(new Error('Only JPEG and PNG images are allowed'));
   },
 });
 
-// Image upload endpoint
-router.post('/upload-image', isAuthenticated, isAdmin, upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No image uploaded' });
-    }
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ imageUrl });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Get all questions with filters
+// Get all questions with filters and pagination
 router.get('/', async (req, res) => {
   try {
-    const { type, difficulty, tags } = req.query;
+    const { type, difficulty, tags, solved, page = 1, limit = 10 } = req.query;
     const query = {};
     if (type) query.type = type;
     if (difficulty) query.difficulty = difficulty;
-    if (tags) query.tags = { $in: tags.split(',') };
-    const questions = await Question.find(query);
-    res.json(questions);
+    if (tags) query.tags = { $all: tags.split(',') };
+    if (solved === 'unsolved') {
+      const answeredQuestions = await Answer.find({ status: 'verified' }).distinct('questionId');
+      query._id = { $nin: answeredQuestions };
+    } else if (solved === 'solved') {
+      const answeredQuestions = await Answer.find({ status: 'verified' }).distinct('questionId');
+      query._id = { $in: answeredQuestions };
+    }
+
+    const questions = await Question.find(query)
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    const total = await Question.countDocuments(query);
+    res.json({
+      questions,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (err) {
+    console.error('Error fetching questions:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Create question
+// Get a single question
+router.get('/:id', async (req, res) => {
+  try {
+    const question = await Question.findById(req.params.id);
+    if (!question) return res.status(404).json({ message: 'Question not found' });
+    res.json(question);
+  } catch (err) {
+    console.error('Error fetching question:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Upload image for question
+router.post('/upload-image', isAuthenticated, isAdmin, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const imageUrl = `${process.env.STORAGE_PATH}/${req.file.filename}`;
+    res.json({ imageUrl });
+  } catch (err) {
+    console.error('Error uploading image:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Create a new question
 router.post('/', isAuthenticated, isAdmin, async (req, res) => {
   try {
     const { questionText, type, cipherType, difficulty, tags, expectedAnswer, testCases, source, image } = req.body;
     if (!questionText || !type || !difficulty) {
-      return res.status(400).json({ message: 'Required fields: questionText, type, difficulty' });
+      return res.status(400).json({ message: 'Question text, type, and difficulty are required' });
     }
     const question = new Question({
       questionText,
       type,
       cipherType: cipherType || '',
       difficulty,
-      tags: typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : (Array.isArray(tags) ? tags : []),
+      tags: tags ? tags.split(',').map((tag) => tag.trim()) : [],
       expectedAnswer: expectedAnswer || '',
       testCases: testCases || [],
       source: source || '',
@@ -4016,96 +4837,47 @@ router.post('/', isAuthenticated, isAdmin, async (req, res) => {
     await question.save();
     res.status(201).json(question);
   } catch (err) {
+    console.error('Error creating question:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Update question
+// Update a question
 router.put('/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: 'Invalid question ID' });
-    }
     const { questionText, type, cipherType, difficulty, tags, expectedAnswer, testCases, source, image } = req.body;
-    const question = await Question.findById(id);
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
-    }
-    question.questionText = questionText || question.questionText;
-    question.type = type || question.type;
-    question.cipherType = cipherType !== undefined ? cipherType : question.cipherType;
-    question.difficulty = difficulty || question.difficulty;
-    question.tags = typeof tags === 'string' ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : (Array.isArray(tags) ? tags : question.tags);
-    question.expectedAnswer = expectedAnswer !== undefined ? expectedAnswer : question.expectedAnswer;
-    question.testCases = testCases || question.testCases;
-    question.source = source !== undefined ? source : question.source;
-    question.image = image !== undefined ? image : question.image;
-    question.updatedAt = Date.now();
+    const question = await Question.findById(req.params.id);
+    if (!question) return res.status(404).json({ message: 'Question not found' });
+    question.questionText = questionText;
+    question.type = type;
+    question.cipherType = cipherType || '';
+    question.difficulty = difficulty;
+    question.tags = tags ? tags.split(',').map((tag) => tag.trim()) : [];
+    question.expectedAnswer = expectedAnswer || '';
+    question.testCases = testCases || [];
+    question.source = source || '';
+    question.image = image || '';
     await question.save();
     res.json(question);
   } catch (err) {
+    console.error('Error updating question:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Delete question
+// Delete a question
 router.delete('/:id', isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: 'Invalid question ID' });
-    }
-    const question = await Question.findByIdAndDelete(id);
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
-    }
-    res.json({ message: 'Question deleted successfully' });
+    const question = await Question.findByIdAndDelete(req.params.id);
+    if (!question) return res.status(404).json({ message: 'Question not found' });
+    res.json({ message: 'Question deleted' });
   } catch (err) {
+    console.error('Error deleting question:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
 module.exports = router;
-
-================
-File: frontend/src/App.js
-================
-import React, { useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { AuthContext } from './context/AuthContext';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Questions from './pages/Questions';
-import AdminDashboard from './pages/AdminDashboard';
-import Profile from './pages/Profile';
-import Navbar from './components/Navbar';
-
-function App() {
-  const { user, loading } = useContext(AuthContext);
-
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <Router>
-      <Navbar />
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={user ? <Navigate to="/questions" /> : <Login />} />
-          <Route path="/register" element={user ? <Navigate to="/questions" /> : <Register />} />
-          <Route path="/questions" element={user ? <Questions /> : <Navigate to="/login" />} />
-          <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
-          <Route path="/admin" element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" />} />
-        </Routes>
-      </motion.div>
-    </Router>
-  );
-}
-
-export default App;
 
 ================
 File: frontend/src/index.js
@@ -4196,7 +4968,6 @@ if (!fs.existsSync(uploadsDir)) {
   fs.chmodSync(uploadsDir, '755');
 }
 
-
 // CORS Middleware
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',
@@ -4260,122 +5031,46 @@ mongoose.connect(process.env.MONGO_URI, {
 module.exports = app;
 
 ================
-File: backend/src/routes/answers.js
+File: frontend/src/App.js
 ================
-const express = require('express');
-const Answer = require('../models/Answer');
-const User = require('../models/User');
-const { isAuthenticated, isAdmin } = require('../middleware/auth');
-const router = express.Router();
+import React, { useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { AuthContext } from './context/AuthContext';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Questions from './pages/Questions';
+import AdminDashboard from './pages/AdminDashboard';
+import Profile from './pages/Profile';
+import Navbar from './components/Navbar';
+import QuestionDetail from './pages/QuestionDetail';
+import EditQuestion from './pages/EditQuestion';
+function App() {
+  const { user, loading } = useContext(AuthContext);
 
-// Submit answer (users)
-router.post('/', isAuthenticated, async (req, res) => {
-  try {
-    const { questionId, content } = req.body;
-    if (!questionId || !content) {
-      return res.status(400).json({ message: 'questionId and content are required' });
-    }
-    const answer = new Answer({
-      questionId,
-      userId: req.user.id,
-      content,
-    });
-    await answer.save();
-    res.status(201).json(answer);
-  } catch (err) {
-    console.error('Error saving answer:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
+  if (loading) return <div>Loading...</div>;
 
-// Verify answer (admin only)
-router.put('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const { status, xpEarned } = req.body;
-    const answer = await Answer.findById(req.params.id);
-    if (!answer) return res.status(404).json({ message: 'Answer not found' });
-    answer.status = status;
-    answer.xpEarned = xpEarned || 0;
-    answer.verificationMethod = 'manual';
-    await answer.save();
+  return (
+    <Router>
+      <Navbar />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={user ? <Navigate to="/questions" /> : <Login />} />
+          <Route path="/register" element={user ? <Navigate to="/questions" /> : <Register />} />
+          <Route path="/questions" element={user ? <Questions /> : <Navigate to="/login" />} />
+          <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+          <Route path="/admin" element={user && user.role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" />} />
+          <Route path="/questions/:id" element={<QuestionDetail />} />
+          <Route path="/edit-question/:id" element={<EditQuestion />} />
+        </Routes>
+      </motion.div>
+    </Router>
+  );
+}
 
-    if (status === 'verified') {
-      const user = await User.findById(answer.userId);
-      user.xp += xpEarned;
-      user.wallet += xpEarned / 10; // 10 XP = 1 INR
-      await user.save();
-    }
-    res.json(answer);
-  } catch (err) {
-    console.error('Error verifying answer:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Suggest changes for answer (admin only)
-router.put('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const { adminComments } = req.body;
-    const answer = await Answer.findById(req.params.id);
-    if (!answer) return res.status(404).json({ message: 'Answer not found' });
-    answer.status = 'rejected';
-    answer.adminComments = adminComments || '';
-    await answer.save();
-    res.json(answer);
-  } catch (err) {
-    console.error('Error suggesting changes:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Resubmit answer (users, only for their own answers)
-router.put('/:id/resubmit', isAuthenticated, async (req, res) => {
-  try {
-    const { content } = req.body;
-    if (!content) {
-      return res.status(400).json({ message: 'content is required' });
-    }
-    const answer = await Answer.findById(req.params.id);
-    if (!answer) return res.status(404).json({ message: 'Answer not found' });
-    if (answer.userId.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Unauthorized to resubmit this answer' });
-    }
-    answer.content = content;
-    answer.status = 'pending';
-    answer.adminComments = '';
-    await answer.save();
-    res.json(answer);
-  } catch (err) {
-    console.error('Error resubmitting answer:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Get all pending answers (admin only)
-router.get('/pending', isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const answers = await Answer.find({ status: 'pending' })
-      .populate('questionId', 'questionText')
-      .populate('userId', 'username');
-    res.json(answers);
-  } catch (err) {
-    console.error('Error fetching pending answers:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Get user answers (for user profile)
-router.get('/user', isAuthenticated, async (req, res) => {
-  try {
-    const answers = await Answer.find({ userId: req.user.id }).populate('questionId', 'questionText');
-    res.json(answers);
-  } catch (err) {
-    console.error('Error fetching user answers:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-module.exports = router;
+export default App;
 
 ================
 File: frontend/src/pages/Login.js
@@ -4461,150 +5156,6 @@ function Login() {
 export default Login;
 
 ================
-File: frontend/src/pages/Profile.js
-================
-import React, { useContext, useEffect, useState } from 'react';
-import { Container, Card, Table, Alert, Badge, Button } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
-import AnswerForm from './AnswerForm';
-
-function Profile() {
-  const { user } = useContext(AuthContext);
-  const [answers, setAnswers] = useState([]);
-  const [resubmitAnswerId, setResubmitAnswerId] = useState(null);
-
-  const fetchAnswers = async () => {
-    try {
-      const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
-      setAnswers(res.data);
-    } catch (err) {
-      console.error('Error fetching answers:', err);
-      alert(err.response?.data?.message || 'Failed to fetch answers');
-    }
-  };
-
-  useEffect(() => {
-    if (user) fetchAnswers();
-  }, [user]);
-
-  const handleResubmit = (answerId) => {
-    setResubmitAnswerId(answerId);
-  };
-
-  return (
-    <Container className="my-5">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h2 className="mb-4">Profile</h2>
-        {user && (
-          <Card className="mb-4">
-            <Card.Body>
-              <Card.Title>{user.username}</Card.Title>
-              <Card.Text>
-                <strong>Email:</strong> {user.email}<br />
-                <strong>XP:</strong> {user.xp}<br />
-                <strong>Wallet:</strong> ₹{user.wallet}<br />
-                <strong>Role:</strong> {user.role}
-              </Card.Text>
-            </Card.Body>
-          </Card>
-        )}
-        <h3 className="mb-3">Your Answers</h3>
-        {answers.some((a) => a.status === 'rejected' && a.adminComments) && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Alert variant="warning">
-              <Badge bg="warning" text="dark" className="me-2">
-                Action Required
-              </Badge>
-              You have answers with suggested changes. Review and resubmit below.
-            </Alert>
-          </motion.div>
-        )}
-        <Table striped bordered hover responsive>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Status</th>
-              <th>XP Earned</th>
-              <th>Admin Comments</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {answers.map((answer) => (
-              <motion.tr
-                key={answer._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(answer) }}
-              >
-                <td>{answer.questionId?.questionText || 'N/A'}</td>
-                <td>{answer.content}</td>
-                <td>{answer.status}</td>
-                <td>{answer.xpEarned}</td>
-                <td>{answer.adminComments || 'None'}</td>
-                <td>
-                  {answer.status === 'rejected' && answer.adminComments && (
-                    <motion.div
-                      whileHover={{ scale: 1.05 }}
-                      transition={{ type: 'spring', stiffness: 300 }}
-                    >
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleResubmit(answer._id)}
-                      >
-                        Resubmit
-                      </Button>
-                    </motion.div>
-                  )}
-                </td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </Table>
-        {resubmitAnswerId && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Card className="mt-4">
-              <Card.Body>
-                <Card.Title>Resubmit Answer</Card.Title>
-                <AnswerForm
-                  questionId={answers.find((a) => a._id === resubmitAnswerId)?.questionId?._id}
-                  answerId={resubmitAnswerId}
-                  setMessage={(msg) => alert(msg)}
-                  setAlertVariant={(variant) => console.log(variant)}
-                  initialContent={answers.find((a) => a._id === resubmitAnswerId)?.content}
-                  onSubmitSuccess={() => {
-                    fetchAnswers(); // Refresh answers from server
-                    setResubmitAnswerId(null);
-                  }}
-                />
-              </Card.Body>
-            </Card>
-          </motion.div>
-        )}
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Profile;
-
-================
 File: backend/package.json
 ================
 {
@@ -4642,6 +5193,181 @@ File: backend/package.json
     "supertest": "^7.1.3"
   }
 }
+
+================
+File: backend/src/routes/answers.js
+================
+const express = require('express');
+const Answer = require('../models/Answer');
+const User = require('../models/User');
+const { isAuthenticated, isAdmin } = require('../middleware/auth');
+const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '..', 'uploads');
+    console.log('Saving image to:', uploadPath); // Debug
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const filename = `${Date.now()}-${file.originalname}`;
+    console.log('Generated filename:', filename); // Debug
+    cb(null, filename);
+  }
+});
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Only JPEG and PNG images are allowed'));
+  },
+});
+
+// Submit answer (users)
+router.post('/:questionId', isAuthenticated, upload.single('image'), async (req, res) => {
+  try {
+    console.log('Request body:', req.body); // Debug
+    console.log('Uploaded file:', req.file); // Debug
+    const { questionId, content } = req.body;
+    if (!questionId || !content) {
+      return res.status(400).json({ message: 'questionId and content are required' });
+    }
+    const image = req.file ? `/Uploads/${req.file.filename}` : null;
+
+    const answer = new Answer({
+      questionId,
+      userId: req.user.id,
+      content,
+      image,
+    });
+    await answer.save();
+    res.status(201).json(answer);
+  } catch (err) {
+    console.error('Error saving answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Verify answer (admin only)
+router.post('/:id/verify', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { status, comments, xpEarned } = req.body;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    answer.status = status;
+    answer.xpEarned = xpEarned || 0;
+    answer.verificationMethod = 'manual';
+    answer.adminComments = comments || '';
+    await answer.save();
+
+    if (status === 'verified') {
+      const user = await User.findById(answer.userId);
+      user.xp += xpEarned;
+      user.wallet += xpEarned / 10; // 10 XP = 1 INR
+      await user.save();
+    }
+    res.json(answer);
+  } catch (err) {
+    console.error('Error verifying answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Suggest changes for answer (admin only)
+router.post('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { comments } = req.body;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    answer.status = 'rejected';
+    answer.adminComments = comments || '';
+    await answer.save();
+    res.json(answer);
+  } catch (err) {
+    console.error('Error suggesting changes:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Resubmit answer (users, only for their own answers)
+router.put('/:id/resubmit', isAuthenticated, upload.single('image'), async (req, res) => {
+  try {
+    console.log('Resubmit request body:', req.body); // Debug
+    console.log('Resubmit uploaded file:', req.file); // Debug
+    const { content } = req.body;
+    if (!content) {
+      return res.status(400).json({ message: 'content is required' });
+    }
+    const image = req.file ? `/Uploads/${req.file.filename}` : null;
+    const answer = await Answer.findById(req.params.id);
+    if (!answer) return res.status(404).json({ message: 'Answer not found' });
+    if (answer.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized to resubmit this answer' });
+    }
+    answer.content = content;
+    answer.image = image || answer.image;
+    answer.status = 'pending';
+    answer.adminComments = '';
+    await answer.save();
+    res.json(answer);
+  } catch (err) {
+    console.error('Error resubmitting answer:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get all pending answers (admin only) with pagination
+router.get('/pending', isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const answers = await Answer.find({ status: 'pending' })
+      .populate('questionId', 'questionText')
+      .populate('userId', 'username')
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+    const total = await Answer.countDocuments({ status: 'pending' });
+    res.json({
+      answers,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (err) {
+    console.error('Error fetching pending answers:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get user answers (for user profile)
+router.get('/user', isAuthenticated, async (req, res) => {
+  try {
+    const answers = await Answer.find({ userId: req.user.id }).populate('questionId', 'questionText');
+    res.json(answers);
+  } catch (err) {
+    console.error('Error fetching user answers:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get all answers for a question (for question detail page)
+router.get('/question/:questionId', isAuthenticated, async (req, res) => {
+  try {
+    const answers = await Answer.find({ questionId: req.params.questionId })
+      .populate('userId', 'username')
+      .populate('questionId', 'questionText');
+    res.json(answers);
+  } catch (err) {
+    console.error('Error fetching answers for question:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
 
 ================
 File: backend/src/routes/auth.js
@@ -4984,112 +5710,190 @@ File: frontend/package.json
 }
 
 ================
-File: frontend/src/pages/AnswerForm.js
+File: frontend/src/pages/Profile.js
 ================
-import React, { useState } from 'react';
-import { Form, Button } from 'react-bootstrap';
+import React, { useContext, useEffect, useState } from 'react';
+import { Container, Card, Table, Alert, Badge, Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
+import AnswerForm from '../components/AnswerForm';
 
-function AnswerForm({ questionId, answerId, setMessage, setAlertVariant, initialContent = '', onSubmitSuccess }) {
-  const [content, setContent] = useState(initialContent);
+function Profile() {
+  const { user } = useContext(AuthContext);
+  const [answers, setAnswers] = useState([]);
+  const [resubmitAnswerId, setResubmitAnswerId] = useState(null);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const fetchAnswers = async () => {
     try {
-      let res;
-      if (answerId) {
-        // Resubmission
-        res = await axios.put(
-          `http://localhost:5000/api/answers/${answerId}/resubmit`,
-          { content },
-          { withCredentials: true }
-        );
-        setMessage('Answer resubmitted successfully');
-        setAlertVariant('success');
-      } else {
-        // New submission
-        res = await axios.post(
-          'http://localhost:5000/api/answers',
-          { questionId, content },
-          { withCredentials: true }
-        );
-        setMessage('Answer submitted successfully');
-        setAlertVariant('success');
-      }
-      setContent('');
-      if (onSubmitSuccess) onSubmitSuccess(res.data);
+      const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
+      setAnswers(res.data);
     } catch (err) {
-      console.error('Error submitting answer:', err);
-      setMessage(err.response?.data?.message || 'Submission failed');
-      setAlertVariant('danger');
+      console.error('Error fetching answers:', err);
+      alert(err.response?.data?.message || 'Failed to fetch answers');
     }
   };
 
+  useEffect(() => {
+    if (user) fetchAnswers();
+  }, [user]);
+
+  const handleResubmit = (answerId) => {
+    setResubmitAnswerId(answerId);
+  };
+
   return (
-    <Form onSubmit={handleSubmit}>
-      <Form.Group className="mb-3" controlId={`answer-${questionId}`}>
-        <Form.Label>Answer</Form.Label>
-        <Form.Control
-          as="textarea"
-          rows={4}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-          placeholder="Enter your answer"
-        />
-      </Form.Group>
+    <Container className="my-5">
       <motion.div
-        whileHover={{ scale: 1.05 }}
-        transition={{ type: 'spring', stiffness: 300 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
       >
-        <Button variant="primary" type="submit">
-          {answerId ? 'Resubmit Answer' : 'Submit Answer'}
-        </Button>
+        <h2 className="mb-4">Profile</h2>
+        {user && (
+          <Card className="mb-4">
+            <Card.Body>
+              <Card.Title>{user.username}</Card.Title>
+              <Card.Text>
+                <strong>Email:</strong> {user.email}<br />
+                <strong>XP:</strong> {user.xp}<br />
+                <strong>Wallet:</strong> ₹{user.wallet}<br />
+                <strong>Role:</strong> {user.role}
+              </Card.Text>
+            </Card.Body>
+          </Card>
+        )}
+        <h3 className="mb-3">Your Answers</h3>
+        {answers.some((a) => a.status === 'rejected' && a.adminComments) && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Alert variant="warning">
+              <Badge bg="warning" text="dark" className="me-2">
+                Action Required
+              </Badge>
+              You have answers with suggested changes. Review and resubmit below.
+            </Alert>
+          </motion.div>
+        )}
+        <Table striped bordered hover responsive>
+          <thead>
+            <tr>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>Status</th>
+              <th>XP Earned</th>
+              <th>Admin Comments</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {answers.map((answer) => (
+              <motion.tr
+                key={answer._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 * answers.indexOf(answer) }}
+              >
+                <td>{answer.questionId?.questionText || 'N/A'}</td>
+                <td>{answer.content}</td>
+                <td>{answer.status}</td>
+                <td>{answer.xpEarned}</td>
+                <td>{answer.adminComments || 'None'}</td>
+                <td>
+                  {answer.status === 'rejected' && answer.adminComments && (
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
+                    >
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleResubmit(answer._id)}
+                      >
+                        Resubmit
+                      </Button>
+                    </motion.div>
+                  )}
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </Table>
+        {resubmitAnswerId && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="mt-4">
+              <Card.Body>
+                <Card.Title>Resubmit Answer</Card.Title>
+                <AnswerForm
+                  questionId={answers.find((a) => a._id === resubmitAnswerId)?.questionId?._id}
+                  answerId={resubmitAnswerId}
+                  setMessage={(msg) => alert(msg)}
+                  setAlertVariant={(variant) => console.log(variant)}
+                  initialContent={answers.find((a) => a._id === resubmitAnswerId)?.content}
+                  onSubmitSuccess={() => {
+                    fetchAnswers(); // Refresh answers from server
+                    setResubmitAnswerId(null);
+                  }}
+                />
+              </Card.Body>
+            </Card>
+          </motion.div>
+        )}
       </motion.div>
-    </Form>
+    </Container>
   );
 }
 
-export default AnswerForm;
+export default Profile;
 
 ================
 File: frontend/src/pages/Register.js
 ================
-import React, { useState, useContext } from 'react';
-import { Form, Button, Card, Alert } from 'react-bootstrap';
-import { motion } from 'framer-motion';
-import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useContext } from "react";
+import { Form, Button, Card, Alert } from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+import { AuthContext } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 function Register() {
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
+    username: "",
+    email: "",
+    password: "",
   });
-  const [message, setMessage] = useState('');
-  const [alertVariant, setAlertVariant] = useState('');
+  const [message, setMessage] = useState("");
+  const [alertVariant, setAlertVariant] = useState("");
   const { setUser, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/register', formData, {
-        withCredentials: true,
-      });
-      console.log('Registration response:', res.data);
+      const res = await axios.post(
+        "http://localhost:5000/api/auth/register",
+        formData,
+        {
+          withCredentials: true,
+        }
+      );
+      console.log("Registration response:", res.data);
       setMessage(res.data.message);
-      setAlertVariant('success');
+      setAlertVariant("success");
       setUser(res.data.user);
       await refreshUser(); // Refresh user state after registration
-      setTimeout(() => navigate('/'), 1000);
+      setTimeout(() => navigate("/"), 1000);
     } catch (err) {
-      console.error('Error registering:', err.response?.data || err.message);
-      setMessage(err.response?.data?.message || 'Registration failed');
-      setAlertVariant('danger');
+      console.error("Error registering:", err.response?.data || err.message);
+      setMessage(err.response?.data?.message || "Registration failed");
+      setAlertVariant("danger");
     }
   };
 
@@ -5099,23 +5903,21 @@ function Register() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
-      <Card className="mx-auto my-5" style={{ maxWidth: '400px' }}>
+      <Card className="mx-auto my-5" style={{ maxWidth: "400px" }}>
         <Card.Body>
           <Card.Title>Register</Card.Title>
-          {message && (
-            <Alert variant={alertVariant}>
-              {message}
-            </Alert>
-          )}
+          {message && <Alert variant={alertVariant}>{message}</Alert>}
           <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3" controlId="username">
               <Form.Label>Username</Form.Label>
               <Form.Control
                 type="text"
                 value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, username: e.target.value })
+                }
                 required
-                placeholder="Enter a username like CyberNinja or john_doe"
+                placeholder="Enter a username"
               />
             </Form.Group>
             <Form.Group className="mb-3" controlId="email">
@@ -5123,7 +5925,9 @@ function Register() {
               <Form.Control
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 required
                 placeholder="Enter email"
               />
@@ -5133,14 +5937,17 @@ function Register() {
               <Form.Control
                 type="password"
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
                 required
                 placeholder="Enter password"
               />
             </Form.Group>
             <motion.div
               whileHover={{ scale: 1.05 }}
-              transition={{ type: 'spring', stiffness: 300 }}
+              transition={{ type: "spring", stiffness: 300 }}
+              style={{ display: "inline-block", transformOrigin: "center" }}
             >
               <Button variant="primary" type="submit">
                 Register
@@ -5154,151 +5961,6 @@ function Register() {
 }
 
 export default Register;
-
-================
-File: frontend/src/pages/Questions.js
-================
-import React, { useState, useEffect } from "react";
-import { Container, Form, Button, Card, Alert } from "react-bootstrap";
-import { motion } from "framer-motion";
-import axios from "axios";
-import AnswerForm from "./AnswerForm";
-
-function Questions() {
-  const [questions, setQuestions] = useState([]);
-  const [filters, setFilters] = useState({
-    type: "",
-    difficulty: "",
-    tags: "",
-  });
-  const [message, setMessage] = useState("");
-  const [alertVariant, setAlertVariant] = useState("");
-
-  useEffect(() => {
-    fetchQuestions();
-  }, [filters]);
-
-  const fetchQuestions = async () => {
-    try {
-      const query = new URLSearchParams({
-        ...(filters.type && { type: filters.type }),
-        ...(filters.difficulty && { difficulty: filters.difficulty }),
-        ...(filters.tags && { tags: filters.tags }),
-      }).toString();
-      const res = await axios.get(
-        `http://localhost:5000/api/questions?${query}`,
-        {
-          withCredentials: true,
-        }
-      );
-      // Prepend base URL to image paths
-      const updatedQuestions = res.data.map((q) => ({
-        ...q,
-        image: q.image || "",
-      }));
-
-      setQuestions(updatedQuestions);
-    } catch (err) {
-      setMessage("Failed to fetch questions");
-      setAlertVariant("danger");
-    }
-  };
-
-  const handleFilterSubmit = (e) => {
-    e.preventDefault();
-    fetchQuestions();
-  };
-
-  return (
-    <Container className="my-5">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <h2>Questions</h2>
-        {message && <Alert variant={alertVariant}>{message}</Alert>}
-        <Form onSubmit={handleFilterSubmit}>
-          <Form.Group className="mb-3" controlId="type">
-            <Form.Label>Type</Form.Label>
-            <Form.Select
-              value={filters.type}
-              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-            >
-              <option value="">All</option>
-              <option value="numeric">Numeric</option>
-              <option value="ciphertext">Ciphertext</option>
-              <option value="code">Code</option>
-              <option value="formula">Formula</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="difficulty">
-            <Form.Label>Difficulty</Form.Label>
-            <Form.Select
-              value={filters.difficulty}
-              onChange={(e) =>
-                setFilters({ ...filters, difficulty: e.target.value })
-              }
-            >
-              <option value="">All</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="tags">
-            <Form.Label>Tags (comma-separated)</Form.Label>
-            <Form.Control
-              type="text"
-              value={filters.tags}
-              onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
-            />
-          </Form.Group>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            <Button variant="primary" type="submit">
-              Apply Filters
-            </Button>
-          </motion.div>
-        </Form>
-        <div className="mt-5">
-          {questions.map((q) => (
-            <Card key={q._id} className="mb-3">
-              <Card.Body>
-                <Card.Title>{q.questionText}</Card.Title>
-                {q.image && (
-                  <img
-                    src={q.image}
-                    alt={`Visual for question: ${q.questionText}`}
-                    className="img-fluid mb-3"
-                    style={{
-                      maxWidth: "100%",
-                      height: "auto",
-                      borderRadius: "6px",
-                    }}
-                  />
-                )}
-                <Card.Text>Type: {q.type}</Card.Text>
-                <Card.Text>Difficulty: {q.difficulty}</Card.Text>
-                <Card.Text>Tags: {q.tags.join(", ")}</Card.Text>
-                <AnswerForm
-                  questionId={q._id}
-                  setMessage={setMessage}
-                  setAlertVariant={setAlertVariant}
-                  onSubmitSuccess={fetchQuestions}
-                />
-              </Card.Body>
-            </Card>
-          ))}
-        </div>
-      </motion.div>
-    </Container>
-  );
-}
-
-export default Questions;
 
 ================
 File: docs/user-guide.md
@@ -5341,13 +6003,203 @@ File: docs/user-guide.md
 - Click "Logout" in the navbar to end your session.
 
 ================
+File: frontend/src/pages/Questions.js
+================
+import React, { useState, useEffect, useCallback } from "react";
+import { Container, Form, Button, ListGroup, Alert } from "react-bootstrap";
+import { motion } from "framer-motion";
+import axios from "axios";
+import { Link } from "react-router-dom";
+import Pagination from "../components/Pagination";
+
+function Questions() {
+  const [questions, setQuestions] = useState([]);
+  const [filters, setFilters] = useState({
+    type: "",
+    difficulty: "",
+    tags: "",
+    solved: "unsolved",
+  });
+  const [message, setMessage] = useState("");
+  const [alertVariant, setAlertVariant] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const limit = 10;
+
+  const fetchQuestions = useCallback(async () => {
+    try {
+      const query = new URLSearchParams({
+        ...(filters.type && { type: filters.type }),
+        ...(filters.difficulty && { difficulty: filters.difficulty }),
+        ...(filters.tags && { tags: filters.tags }),
+        solved: filters.solved,
+        page: currentPage,
+        limit,
+      }).toString();
+      const res = await axios.get(
+        `http://localhost:5000/api/questions?${query}`,
+        {
+          withCredentials: true,
+        }
+      );
+      const updatedQuestions = res.data.questions.map((q) => ({
+        ...q,
+        image: q.image || "",
+      }));
+      setQuestions(updatedQuestions);
+      setTotalPages(res.data.totalPages || 1);
+    } catch (err) {
+      setMessage("Failed to fetch questions");
+      setAlertVariant("danger");
+    }
+  }, [filters, currentPage]);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
+
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    fetchQuestions();
+  };
+
+  const handleToggle = (solved) => {
+    setFilters({ ...filters, solved });
+    setCurrentPage(1);
+  };
+
+  return (
+    <Container className="my-5">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <h2>Questions</h2>
+        {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex rounded-md shadow-sm">
+            <button
+              onClick={() => handleToggle("unsolved")}
+              className={`px-4 py-2 text-sm font-semibold border rounded-l-lg focus:outline-none transition ${
+                filters.solved === "unsolved"
+                  ? "bg-blue-600 text-white shadow-md border-blue-700"
+                  : "bg-white text-gray-900 border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              Unsolved
+            </button>
+            <button
+              onClick={() => handleToggle("solved")}
+              className={`px-4 py-2 text-sm font-semibold border rounded-r-lg focus:outline-none transition ${
+                filters.solved === "solved"
+                  ? "bg-blue-600 text-white shadow-md border-blue-700"
+                  : "bg-white text-gray-900 border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              Solved
+            </button>
+          </div>
+        </div>
+        <Form onSubmit={handleFilterSubmit}>
+          <Form.Group className="mb-3" controlId="type">
+            <Form.Label>Type</Form.Label>
+            <Form.Select
+              value={filters.type}
+              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+            >
+              <option value="">All</option>
+              <option value="numeric">Numeric</option>
+              <option value="ciphertext">Ciphertext</option>
+              <option value="code">Code</option>
+              <option value="formula">Formula</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="difficulty">
+            <Form.Label>Difficulty</Form.Label>
+            <Form.Select
+              value={filters.difficulty}
+              onChange={(e) =>
+                setFilters({ ...filters, difficulty: e.target.value })
+              }
+            >
+              <option value="">All</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="tags">
+            <Form.Label>Tags (comma-separated)</Form.Label>
+            <Form.Control
+              type="text"
+              value={filters.tags}
+              onChange={(e) => setFilters({ ...filters, tags: e.target.value })}
+            />
+          </Form.Group>
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            transition={{ type: "spring", stiffness: 300 }}
+            style={{ display: "inline-block", transformOrigin: "center" }}
+          >
+            <Button variant="primary" type="submit" className="px-4 py-2">
+              Apply Filters
+            </Button>
+          </motion.div>
+        </Form>
+        <ListGroup className="mt-5">
+          {questions.map((q) => (
+            <ListGroup.Item
+              key={q._id}
+              action
+              as={Link}
+              to={`/questions/${q._id}`}
+            >
+              <div className="d-flex justify-content-between">
+                <div>
+                  <h5>{q.questionText}</h5>
+                  <p className="mb-0">
+                    Type: {q.type} | Difficulty: {q.difficulty} | Tags:{" "}
+                    {q.tags.join(", ")}
+                  </p>
+                </div>
+                {q.image && (
+                  <img
+                    src={q.image}
+                    alt={`Thumbnail for ${q.questionText}`}
+                    style={{
+                      maxWidth: "50px",
+                      height: "auto",
+                      borderRadius: "4px",
+                    }}
+                  />
+                )}
+              </div>
+            </ListGroup.Item>
+          ))}
+        </ListGroup>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      </motion.div>
+    </Container>
+  );
+}
+
+export default Questions;
+
+================
 File: frontend/src/pages/AdminDashboard.js
 ================
-import React, { useState, useEffect, useRef } from 'react';
-import { Container, Form, Button, Table, Alert } from 'react-bootstrap';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Container, Form, Button, ListGroup, Alert, Tabs, Tab, Modal } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import Pagination from '../components/Pagination';
 
 function AdminDashboard() {
   const [questions, setQuestions] = useState([]);
@@ -5362,52 +6214,68 @@ function AdminDashboard() {
     source: '',
     image: '',
   });
-  const [editingQuestion, setEditingQuestion] = useState(null);
   const [pendingAnswers, setPendingAnswers] = useState([]);
   const [message, setMessage] = useState('');
   const [alertVariant, setAlertVariant] = useState('');
   const [imageFile, setImageFile] = useState(null);
+  const [questionPage, setQuestionPage] = useState(1);
+  const [answerPage, setAnswerPage] = useState(1);
+  const [totalQuestionPages, setTotalQuestionPages] = useState(1);
+  const [totalAnswerPages, setTotalAnswerPages] = useState(1);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
+  const limit = 10;
   const dropRef = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchQuestions();
-    fetchPendingAnswers();
-  }, []);
-
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/questions', { withCredentials: true });
-      setQuestions(res.data);
+      const res = await axios.get(`http://localhost:5000/api/questions?page=${questionPage}&limit=${limit}`, {
+        withCredentials: true,
+      });
+      setQuestions(res.data.questions || []);
+      setTotalQuestionPages(res.data.totalPages || 1);
     } catch (err) {
       setMessage('Failed to fetch questions');
       setAlertVariant('danger');
     }
-  };
+  }, [questionPage]);
 
-  const fetchPendingAnswers = async () => {
+  const fetchPendingAnswers = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/answers/pending', { withCredentials: true });
-      setPendingAnswers(res.data);
+      const res = await axios.get(`http://localhost:5000/api/answers/pending?page=${answerPage}&limit=${limit}`, {
+        withCredentials: true,
+      });
+      const answers = (res.data.answers || []).map((answer) => ({
+        ...answer,
+        image: answer.image ? `http://localhost:5000${answer.image}` : '',
+      }));
+      setPendingAnswers(answers);
+      setTotalAnswerPages(res.data.totalPages || 1);
     } catch (err) {
       setMessage('Failed to fetch pending answers');
       setAlertVariant('danger');
     }
-  };
+  }, [answerPage]);
+
+  useEffect(() => {
+    fetchQuestions();
+    fetchPendingAnswers();
+  }, [questionPage, answerPage, fetchQuestions, fetchPendingAnswers]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    dropRef.current.style.border = '2px dashed var(--secondary)';
+    dropRef.current.style.border = '2px dashed #6c757d';
   };
 
   const handleDragLeave = () => {
-    dropRef.current.style.border = '1px solid var(--border)';
+    dropRef.current.style.border = '1px solid #ced4da';
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setImageFile(e.dataTransfer.files[0]);
-    dropRef.current.style.border = '1px solid var(--border)';
+    dropRef.current.style.border = '1px solid #ced4da';
   };
 
   const handleImageSubmit = async () => {
@@ -5436,23 +6304,11 @@ function AdminDashboard() {
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      console.log('Submitting question:', newQuestion); // Debug log for tags issue
-      if (editingQuestion) {
-        const res = await axios.put(
-          `http://localhost:5000/api/questions/${editingQuestion._id}`,
-          newQuestion,
-          { withCredentials: true }
-        );
-        setQuestions(questions.map((q) => (q._id === editingQuestion._id ? res.data : q)));
-        setEditingQuestion(null);
-        setMessage('Question updated successfully');
-      } else {
-        const res = await axios.post('http://localhost:5000/api/questions', newQuestion, {
-          withCredentials: true,
-        });
-        setQuestions([...questions, res.data]);
-        setMessage('Question created successfully');
-      }
+      const res = await axios.post('http://localhost:5000/api/questions', newQuestion, {
+        withCredentials: true,
+      });
+      setQuestions([...questions, res.data]);
+      setMessage('Question created successfully');
       setAlertVariant('success');
       setNewQuestion({
         questionText: '',
@@ -5471,21 +6327,6 @@ function AdminDashboard() {
     }
   };
 
-  const handleEdit = (question) => {
-    setEditingQuestion(question);
-    setNewQuestion({
-      questionText: question.questionText,
-      type: question.type,
-      cipherType: question.cipherType,
-      difficulty: question.difficulty,
-      tags: question.tags.join(','),
-      expectedAnswer: question.expectedAnswer || '',
-      testCases: question.testCases,
-      source: question.source,
-      image: question.image,
-    });
-  };
-
   const handleDelete = async (id) => {
     try {
       await axios.delete(`http://localhost:5000/api/questions/${id}`, { withCredentials: true });
@@ -5498,36 +6339,14 @@ function AdminDashboard() {
     }
   };
 
-  const handleVerifyAnswer = async (answerId, status, comments = '') => {
-    try {
-      await axios.post(
-        `http://localhost:5000/api/answers/${answerId}/verify`,
-        { status, comments },
-        { withCredentials: true }
-      );
-      setPendingAnswers(pendingAnswers.filter((a) => a._id !== answerId));
-      setMessage(`Answer ${status} successfully`);
-      setAlertVariant('success');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Failed to verify answer');
-      setAlertVariant('danger');
-    }
+  const handleImageClick = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setShowImageModal(true);
   };
 
-  const handleSuggestChanges = async (answerId, comments) => {
-    try {
-      await axios.post(
-        `http://localhost:5000/api/answers/${answerId}/suggest`,
-        { comments },
-        { withCredentials: true }
-      );
-      setPendingAnswers(pendingAnswers.filter((a) => a._id !== answerId));
-      setMessage('Suggestions sent successfully');
-      setAlertVariant('success');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Failed to send suggestions');
-      setAlertVariant('danger');
-    }
+  const handleCloseModal = () => {
+    setShowImageModal(false);
+    setSelectedImage('');
   };
 
   return (
@@ -5535,217 +6354,215 @@ function AdminDashboard() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <h2>Admin Dashboard</h2>
         {message && <Alert variant={alertVariant}>{message}</Alert>}
-        <h3>{editingQuestion ? 'Edit Question' : 'Create Question'}</h3>
-        <Form onSubmit={handleQuestionSubmit}>
-          <Form.Group className="mb-3" controlId="questionText">
-            <Form.Label>Question Text</Form.Label>
-            <Form.Control
-              as="textarea"
-              value={newQuestion.questionText}
-              onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
-              required
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="type">
-            <Form.Label>Type</Form.Label>
-            <Form.Select
-              value={newQuestion.type}
-              onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
-            >
-              <option value="numeric">Numeric</option>
-              <option value="ciphertext">Ciphertext</option>
-              <option value="code">Code</option>
-              <option value="formula">Formula</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="cipherType">
-            <Form.Label>Cipher Type (Optional)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newQuestion.cipherType}
-              onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="difficulty">
-            <Form.Label>Difficulty</Form.Label>
-            <Form.Select
-              value={newQuestion.difficulty}
-              onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="tags">
-            <Form.Label>Tags (comma-separated)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newQuestion.tags}
-              onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="expectedAnswer">
-            <Form.Label>Expected Answer (Optional)</Form.Label>
-            <Form.Control
-              as="textarea"
-              value={newQuestion.expectedAnswer}
-              onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="testCases">
-            <Form.Label>Test Cases (Optional)</Form.Label>
-            <Form.Control
-              as="textarea"
-              value={JSON.stringify(newQuestion.testCases)}
-              onChange={(e) => {
-                try {
-                  setNewQuestion({ ...newQuestion, testCases: JSON.parse(e.target.value) || [] });
-                } catch {
-                  setMessage('Invalid test cases format');
-                  setAlertVariant('danger');
-                }
-              }}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="source">
-            <Form.Label>Source (Optional)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newQuestion.source}
-              onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="image">
-            <Form.Label>Question Image (Optional)</Form.Label>
-            <div
-              ref={dropRef}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: '6px' }}
-            >
-              <Form.Control
-                type="file"
-                accept="image/jpeg,image/png"
-                capture="environment"
-                onChange={(e) => setImageFile(e.target.files[0])}
-                aria-label="Upload or capture question image"
-              />
-              <p className="text-muted">Drag and drop or click to upload/capture image (JPEG/PNG only)</p>
-            </div>
-            {imageFile && (
+        <Tabs defaultActiveKey="create" id="admin-tabs" className="mb-3">
+          <Tab eventKey="create" title="Create Question">
+            <Form onSubmit={handleQuestionSubmit}>
+              <Form.Group className="mb-3" controlId="questionText">
+                <Form.Label>Question Text</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  value={newQuestion.questionText}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="type">
+                <Form.Label>Type</Form.Label>
+                <Form.Select
+                  value={newQuestion.type}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                >
+                  <option value="numeric">Numeric</option>
+                  <option value="ciphertext">Ciphertext</option>
+                  <option value="code">Code</option>
+                  <option value="formula">Formula</option>
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="cipherType">
+                <Form.Label>Cipher Type (Optional)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={newQuestion.cipherType}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="difficulty">
+                <Form.Label>Difficulty</Form.Label>
+                <Form.Select
+                  value={newQuestion.difficulty}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="tags">
+                <Form.Label>Tags (comma-separated)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={newQuestion.tags}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="expectedAnswer">
+                <Form.Label>Expected Answer (Optional)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  value={newQuestion.expectedAnswer}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="testCases">
+                <Form.Label>Test Cases (Optional)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  value={JSON.stringify(newQuestion.testCases)}
+                  onChange={(e) => {
+                    try {
+                      setNewQuestion({ ...newQuestion, testCases: JSON.parse(e.target.value) || [] });
+                    } catch {
+                      setMessage('Invalid test cases format');
+                      setAlertVariant('danger');
+                    }
+                  }}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="source">
+                <Form.Label>Source (Optional)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={newQuestion.source}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="image">
+                <Form.Label>Question Image (Optional)</Form.Label>
+                <div
+                  ref={dropRef}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  style={{ border: '1px solid #ced4da', padding: '1rem', borderRadius: '6px' }}
+                >
+                  <Form.Control
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    capture="environment"
+                    onChange={(e) => setImageFile(e.target.files[0])}
+                    aria-label="Upload or capture question image"
+                  />
+                  <p className="text-muted">Drag and drop or click to upload/capture image (JPEG/PNG only)</p>
+                </div>
+                {imageFile && (
+                  <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+                    <Button onClick={handleImageSubmit} className="mt-2">
+                      Upload Image
+                    </Button>
+                  </motion.div>
+                )}
+                {newQuestion.image && (
+                  <div className="mt-2">
+                    <img
+                      src={newQuestion.image}
+                      alt="Preview of uploaded question"
+                      style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                      onClick={() => handleImageClick(newQuestion.image)}
+                    />
+                  </div>
+                )}
+              </Form.Group>
               <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
-                <Button onClick={handleImageSubmit} className="mt-2">
-                  Upload Image
+                <Button variant="primary" type="submit">
+                  Create Question
                 </Button>
               </motion.div>
-            )}
-            {newQuestion.image && (
-              <div className="mt-2">
-                <img
-                  src={newQuestion.image}
-                  alt="Preview of uploaded question"
-                  style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                />
-              </div>
-            )}
-          </Form.Group>
-          <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Button variant="primary" type="submit">
-              {editingQuestion ? 'Update Question' : 'Create Question'}
+            </Form>
+          </Tab>
+          <Tab eventKey="questions" title="Questions">
+            <ListGroup>
+              {questions.map((q) => (
+                <ListGroup.Item key={q._id} action onClick={() => navigate(`/questions/${q._id}`)}>
+                  <div className="d-flex justify-content-between">
+                    <div>
+                      <h5>{q.questionText}</h5>
+                      <p className="mb-0">Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(", ")}</p>
+                    </div>
+                    <div>
+                      <Button
+                        variant="warning"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/edit-question/${q._id}`);
+                        }}
+                      >
+                        Edit
+                      </Button>{' '}
+                      <Button
+                        variant="danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(q._id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+            <Pagination
+              currentPage={questionPage}
+              totalPages={totalQuestionPages}
+              onPageChange={setQuestionPage}
+            />
+          </Tab>
+          <Tab eventKey="answers" title="Pending Answers">
+            <ListGroup>
+              {pendingAnswers.map((a) => (
+                <ListGroup.Item key={a._id} action onClick={() => navigate(`/questions/${a.questionId._id}`)}>
+                  <div className="d-flex justify-content-between">
+                    <div>
+                      <h5>{a.questionId?.questionText || 'Unknown'}</h5>
+                      <p className="mb-0">Username: {a.userId?.username || 'Unknown'}</p>
+                      <p className="mb-0">Answer: {a.content}</p>
+                      {a.image && (
+                        <img
+                          src={a.image}
+                          alt={`Answer for ${a.questionId?.questionText || 'question'}`}
+                          className="img-fluid mt-2 cursor-pointer"
+                          style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                          onClick={() => handleImageClick(a.image)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+            <Pagination
+              currentPage={answerPage}
+              totalPages={totalAnswerPages}
+              onPageChange={setAnswerPage}
+            />
+          </Tab>
+        </Tabs>
+        <Modal show={showImageModal} onHide={handleCloseModal} centered>
+          <Modal.Body>
+            <img
+              src={selectedImage}
+              alt="Enlarged answer"
+              className="img-fluid"
+              style={{ maxWidth: '100%', height: 'auto' }}
+            />
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Close
             </Button>
-            {editingQuestion && (
-              <Button
-                variant="secondary"
-                className="ms-2"
-                onClick={() => {
-                  setEditingQuestion(null);
-                  setNewQuestion({
-                    questionText: '',
-                    type: 'numeric',
-                    cipherType: '',
-                    difficulty: 'easy',
-                    tags: '',
-                    expectedAnswer: '',
-                    testCases: [],
-                    source: '',
-                    image: '',
-                  });
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-          </motion.div>
-        </Form>
-        <h3 className="mt-5">Questions</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Type</th>
-              <th>Difficulty</th>
-              <th>Tags</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {questions.map((q) => (
-              <tr key={q._id}>
-                <td>{q.questionText}</td>
-                <td>{q.type}</td>
-                <td>{q.difficulty}</td>
-                <td>{q.tags.join(', ')}</td>
-                <td>
-                  <Button variant="warning" onClick={() => handleEdit(q)}>
-                    Edit
-                  </Button>{' '}
-                  <Button variant="danger" onClick={() => handleDelete(q._id)}>
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-        <h3 className="mt-5">Pending Answers</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pendingAnswers.map((a) => (
-              <tr key={a._id}>
-                <td>{a.userId?.username || 'Unknown'}</td>
-                <td>{a.questionId?.questionText || 'Unknown'}</td>
-                <td>{a.content}</td>
-                <td>
-                  <Button variant="success" onClick={() => handleVerifyAnswer(a._id, 'verified')}>
-                    Verify
-                  </Button>{' '}
-                  <Button
-                    variant="warning"
-                    onClick={() => {
-                      const comments = prompt('Enter suggestions for resubmission:');
-                      if (comments) handleSuggestChanges(a._id, comments);
-                    }}
-                  >
-                    Suggest Changes
-                  </Button>{' '}
-                  <Button variant="danger" onClick={() => handleVerifyAnswer(a._id, 'rejected')}>
-                    Reject
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+          </Modal.Footer>
+        </Modal>
       </motion.div>
     </Container>
   );

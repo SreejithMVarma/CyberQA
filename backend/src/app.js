@@ -23,7 +23,6 @@ if (!fs.existsSync(uploadsDir)) {
   fs.chmodSync(uploadsDir, '755');
 }
 
-
 // CORS Middleware
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3000',

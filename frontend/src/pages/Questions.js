@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { Container, Form, Button, Card, Alert } from "react-bootstrap";
+import React, { useState, useEffect, useCallback } from "react";
+import { Container, Form, Button, ListGroup, Alert } from "react-bootstrap";
 import { motion } from "framer-motion";
 import axios from "axios";
-import AnswerForm from "../components/AnswerForm";
+import { Link } from "react-router-dom";
+import Pagination from "../components/Pagination";
+
 
 function Questions() {
   const [questions, setQuestions] = useState([]);
@@ -10,20 +12,23 @@ function Questions() {
     type: "",
     difficulty: "",
     tags: "",
+    solved: "unsolved",
   });
   const [message, setMessage] = useState("");
   const [alertVariant, setAlertVariant] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const limit = 10;
 
-  useEffect(() => {
-    fetchQuestions();
-  }, [filters]);
-
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     try {
       const query = new URLSearchParams({
         ...(filters.type && { type: filters.type }),
         ...(filters.difficulty && { difficulty: filters.difficulty }),
         ...(filters.tags && { tags: filters.tags }),
+        solved: filters.solved,
+        page: currentPage,
+        limit,
       }).toString();
       const res = await axios.get(
         `http://localhost:5000/api/questions?${query}`,
@@ -31,22 +36,32 @@ function Questions() {
           withCredentials: true,
         }
       );
-      // Prepend base URL to image paths
-      const updatedQuestions = res.data.map((q) => ({
+      const updatedQuestions = res.data.questions.map((q) => ({
         ...q,
-        image: q.image || "",
+        image: q.image ? `${process.env.REACT_APP_API_URL}/${q.image.replace(/^\/+/, '')}` : "",
       }));
 
       setQuestions(updatedQuestions);
+      setTotalPages(res.data.totalPages || 1);
     } catch (err) {
       setMessage("Failed to fetch questions");
       setAlertVariant("danger");
     }
-  };
+  }, [filters, currentPage]);
+
+  useEffect(() => {
+    fetchQuestions();
+  }, [fetchQuestions]);
 
   const handleFilterSubmit = (e) => {
     e.preventDefault();
+    setCurrentPage(1);
     fetchQuestions();
+  };
+
+  const handleToggle = (solved) => {
+    setFilters({ ...filters, solved });
+    setCurrentPage(1);
   };
 
   return (
@@ -58,6 +73,30 @@ function Questions() {
       >
         <h2>Questions</h2>
         {message && <Alert variant={alertVariant}>{message}</Alert>}
+        <div className="flex justify-center mb-4">
+          <div className="inline-flex rounded-md shadow-sm">
+            <button
+              onClick={() => handleToggle("unsolved")}
+              className={`px-4 py-2 text-sm font-semibold border rounded-l-lg focus:outline-none transition ${
+                filters.solved === "unsolved"
+                  ? "bg-blue-600 text-white shadow-md border-blue-700"
+                  : "bg-white text-gray-900 border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              Unsolved
+            </button>
+            <button
+              onClick={() => handleToggle("solved")}
+              className={`px-4 py-2 text-sm font-semibold border rounded-r-lg focus:outline-none transition ${
+                filters.solved === "solved"
+                  ? "bg-blue-600 text-white shadow-md border-blue-700"
+                  : "bg-white text-gray-900 border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              Solved
+            </button>
+          </div>
+        </div>
         <Form onSubmit={handleFilterSubmit}>
           <Form.Group className="mb-3" controlId="type">
             <Form.Label>Type</Form.Label>
@@ -97,42 +136,49 @@ function Questions() {
           <motion.div
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 300 }}
+            style={{ display: "inline-block", transformOrigin: "center" }}
           >
-            <Button variant="primary" type="submit">
+            <Button variant="primary" type="submit" className="px-4 py-2">
               Apply Filters
             </Button>
           </motion.div>
         </Form>
-        <div className="mt-5">
+        <ListGroup className="mt-5">
           {questions.map((q) => (
-            <Card key={q._id} className="mb-3">
-              <Card.Body>
-                <Card.Title>{q.questionText}</Card.Title>
+            <ListGroup.Item
+              key={q._id}
+              action
+              as={Link}
+              to={`/questions/${q._id}`}
+            >
+              <div className="d-flex justify-content-between">
+                <div>
+                  <h5>{q.questionText}</h5>
+                  <p className="mb-0">
+                    Type: {q.type} | Difficulty: {q.difficulty} | Tags:{" "}
+                    {q.tags.join(", ")}
+                  </p>
+                </div>
                 {q.image && (
                   <img
                     src={q.image}
-                    alt={`Visual for question: ${q.questionText}`}
-                    className="img-fluid mb-3"
+                    alt={`Thumbnail for ${q.questionText}`}
                     style={{
-                      maxWidth: "100%",
+                      maxWidth: "50px",
                       height: "auto",
-                      borderRadius: "6px",
+                      borderRadius: "4px",
                     }}
                   />
                 )}
-                <Card.Text>Type: {q.type}</Card.Text>
-                <Card.Text>Difficulty: {q.difficulty}</Card.Text>
-                <Card.Text>Tags: {q.tags.join(", ")}</Card.Text>
-                <AnswerForm
-                  questionId={q._id}
-                  setMessage={setMessage}
-                  setAlertVariant={setAlertVariant}
-                  onSubmitSuccess={fetchQuestions}
-                />
-              </Card.Body>
-            </Card>
+              </div>
+            </ListGroup.Item>
           ))}
-        </div>
+        </ListGroup>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </motion.div>
     </Container>
   );

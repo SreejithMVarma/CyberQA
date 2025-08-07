@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Container, Form, Button, Table, Alert } from 'react-bootstrap';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Container, Form, Button, ListGroup, Alert, Tabs, Tab, Modal } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import Pagination from '../components/Pagination';
 
 function AdminDashboard() {
   const [questions, setQuestions] = useState([]);
@@ -17,52 +18,68 @@ function AdminDashboard() {
     source: '',
     image: '',
   });
-  const [editingQuestion, setEditingQuestion] = useState(null);
   const [pendingAnswers, setPendingAnswers] = useState([]);
   const [message, setMessage] = useState('');
   const [alertVariant, setAlertVariant] = useState('');
   const [imageFile, setImageFile] = useState(null);
+  const [questionPage, setQuestionPage] = useState(1);
+  const [answerPage, setAnswerPage] = useState(1);
+  const [totalQuestionPages, setTotalQuestionPages] = useState(1);
+  const [totalAnswerPages, setTotalAnswerPages] = useState(1);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
+  const limit = 10;
   const dropRef = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchQuestions();
-    fetchPendingAnswers();
-  }, []);
-
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/questions', { withCredentials: true });
-      setQuestions(res.data);
+      const res = await axios.get(`http://localhost:5000/api/questions?page=${questionPage}&limit=${limit}`, {
+        withCredentials: true,
+      });
+      setQuestions(res.data.questions || []);
+      setTotalQuestionPages(res.data.totalPages || 1);
     } catch (err) {
       setMessage('Failed to fetch questions');
       setAlertVariant('danger');
     }
-  };
+  }, [questionPage]);
 
-  const fetchPendingAnswers = async () => {
+  const fetchPendingAnswers = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/answers/pending', { withCredentials: true });
-      setPendingAnswers(res.data);
+      const res = await axios.get(`http://localhost:5000/api/answers/pending?page=${answerPage}&limit=${limit}`, {
+        withCredentials: true,
+      });
+      const answers = (res.data.answers || []).map((answer) => ({
+        ...answer,
+        image: answer.image ? `http://localhost:5000${answer.image}` : '',
+      }));
+      setPendingAnswers(answers);
+      setTotalAnswerPages(res.data.totalPages || 1);
     } catch (err) {
       setMessage('Failed to fetch pending answers');
       setAlertVariant('danger');
     }
-  };
+  }, [answerPage]);
+
+  useEffect(() => {
+    fetchQuestions();
+    fetchPendingAnswers();
+  }, [questionPage, answerPage, fetchQuestions, fetchPendingAnswers]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    dropRef.current.style.border = '2px dashed var(--secondary)';
+    dropRef.current.style.border = '2px dashed #6c757d';
   };
 
   const handleDragLeave = () => {
-    dropRef.current.style.border = '1px solid var(--border)';
+    dropRef.current.style.border = '1px solid #ced4da';
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setImageFile(e.dataTransfer.files[0]);
-    dropRef.current.style.border = '1px solid var(--border)';
+    dropRef.current.style.border = '1px solid #ced4da';
   };
 
   const handleImageSubmit = async () => {
@@ -91,23 +108,11 @@ function AdminDashboard() {
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      console.log('Submitting question:', newQuestion); // Debug log for tags issue
-      if (editingQuestion) {
-        const res = await axios.put(
-          `http://localhost:5000/api/questions/${editingQuestion._id}`,
-          newQuestion,
-          { withCredentials: true }
-        );
-        setQuestions(questions.map((q) => (q._id === editingQuestion._id ? res.data : q)));
-        setEditingQuestion(null);
-        setMessage('Question updated successfully');
-      } else {
-        const res = await axios.post('http://localhost:5000/api/questions', newQuestion, {
-          withCredentials: true,
-        });
-        setQuestions([...questions, res.data]);
-        setMessage('Question created successfully');
-      }
+      const res = await axios.post('http://localhost:5000/api/questions', newQuestion, {
+        withCredentials: true,
+      });
+      setQuestions([...questions, res.data]);
+      setMessage('Question created successfully');
       setAlertVariant('success');
       setNewQuestion({
         questionText: '',
@@ -126,21 +131,6 @@ function AdminDashboard() {
     }
   };
 
-  const handleEdit = (question) => {
-    setEditingQuestion(question);
-    setNewQuestion({
-      questionText: question.questionText,
-      type: question.type,
-      cipherType: question.cipherType,
-      difficulty: question.difficulty,
-      tags: question.tags.join(','),
-      expectedAnswer: question.expectedAnswer || '',
-      testCases: question.testCases,
-      source: question.source,
-      image: question.image,
-    });
-  };
-
   const handleDelete = async (id) => {
     try {
       await axios.delete(`http://localhost:5000/api/questions/${id}`, { withCredentials: true });
@@ -153,36 +143,14 @@ function AdminDashboard() {
     }
   };
 
-  const handleVerifyAnswer = async (answerId, status, comments = '') => {
-    try {
-      await axios.post(
-        `http://localhost:5000/api/answers/${answerId}/verify`,
-        { status, comments },
-        { withCredentials: true }
-      );
-      setPendingAnswers(pendingAnswers.filter((a) => a._id !== answerId));
-      setMessage(`Answer ${status} successfully`);
-      setAlertVariant('success');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Failed to verify answer');
-      setAlertVariant('danger');
-    }
+  const handleImageClick = (imageUrl) => {
+    setSelectedImage(imageUrl);
+    setShowImageModal(true);
   };
 
-  const handleSuggestChanges = async (answerId, comments) => {
-    try {
-      await axios.post(
-        `http://localhost:5000/api/answers/${answerId}/suggest`,
-        { comments },
-        { withCredentials: true }
-      );
-      setPendingAnswers(pendingAnswers.filter((a) => a._id !== answerId));
-      setMessage('Suggestions sent successfully');
-      setAlertVariant('success');
-    } catch (err) {
-      setMessage(err.response?.data?.message || 'Failed to send suggestions');
-      setAlertVariant('danger');
-    }
+  const handleCloseModal = () => {
+    setShowImageModal(false);
+    setSelectedImage('');
   };
 
   return (
@@ -190,217 +158,215 @@ function AdminDashboard() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
         <h2>Admin Dashboard</h2>
         {message && <Alert variant={alertVariant}>{message}</Alert>}
-        <h3>{editingQuestion ? 'Edit Question' : 'Create Question'}</h3>
-        <Form onSubmit={handleQuestionSubmit}>
-          <Form.Group className="mb-3" controlId="questionText">
-            <Form.Label>Question Text</Form.Label>
-            <Form.Control
-              as="textarea"
-              value={newQuestion.questionText}
-              onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
-              required
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="type">
-            <Form.Label>Type</Form.Label>
-            <Form.Select
-              value={newQuestion.type}
-              onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
-            >
-              <option value="numeric">Numeric</option>
-              <option value="ciphertext">Ciphertext</option>
-              <option value="code">Code</option>
-              <option value="formula">Formula</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="cipherType">
-            <Form.Label>Cipher Type (Optional)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newQuestion.cipherType}
-              onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="difficulty">
-            <Form.Label>Difficulty</Form.Label>
-            <Form.Select
-              value={newQuestion.difficulty}
-              onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </Form.Select>
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="tags">
-            <Form.Label>Tags (comma-separated)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newQuestion.tags}
-              onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="expectedAnswer">
-            <Form.Label>Expected Answer (Optional)</Form.Label>
-            <Form.Control
-              as="textarea"
-              value={newQuestion.expectedAnswer}
-              onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="testCases">
-            <Form.Label>Test Cases (Optional)</Form.Label>
-            <Form.Control
-              as="textarea"
-              value={JSON.stringify(newQuestion.testCases)}
-              onChange={(e) => {
-                try {
-                  setNewQuestion({ ...newQuestion, testCases: JSON.parse(e.target.value) || [] });
-                } catch {
-                  setMessage('Invalid test cases format');
-                  setAlertVariant('danger');
-                }
-              }}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="source">
-            <Form.Label>Source (Optional)</Form.Label>
-            <Form.Control
-              type="text"
-              value={newQuestion.source}
-              onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
-            />
-          </Form.Group>
-          <Form.Group className="mb-3" controlId="image">
-            <Form.Label>Question Image (Optional)</Form.Label>
-            <div
-              ref={dropRef}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: '6px' }}
-            >
-              <Form.Control
-                type="file"
-                accept="image/jpeg,image/png"
-                capture="environment"
-                onChange={(e) => setImageFile(e.target.files[0])}
-                aria-label="Upload or capture question image"
-              />
-              <p className="text-muted">Drag and drop or click to upload/capture image (JPEG/PNG only)</p>
-            </div>
-            {imageFile && (
+        <Tabs defaultActiveKey="create" id="admin-tabs" className="mb-3">
+          <Tab eventKey="create" title="Create Question">
+            <Form onSubmit={handleQuestionSubmit}>
+              <Form.Group className="mb-3" controlId="questionText">
+                <Form.Label>Question Text</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  value={newQuestion.questionText}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, questionText: e.target.value })}
+                  required
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="type">
+                <Form.Label>Type</Form.Label>
+                <Form.Select
+                  value={newQuestion.type}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, type: e.target.value })}
+                >
+                  <option value="numeric">Numeric</option>
+                  <option value="ciphertext">Ciphertext</option>
+                  <option value="code">Code</option>
+                  <option value="formula">Formula</option>
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="cipherType">
+                <Form.Label>Cipher Type (Optional)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={newQuestion.cipherType}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, cipherType: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="difficulty">
+                <Form.Label>Difficulty</Form.Label>
+                <Form.Select
+                  value={newQuestion.difficulty}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, difficulty: e.target.value })}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </Form.Select>
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="tags">
+                <Form.Label>Tags (comma-separated)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={newQuestion.tags}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, tags: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="expectedAnswer">
+                <Form.Label>Expected Answer (Optional)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  value={newQuestion.expectedAnswer}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, expectedAnswer: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="testCases">
+                <Form.Label>Test Cases (Optional)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  value={JSON.stringify(newQuestion.testCases)}
+                  onChange={(e) => {
+                    try {
+                      setNewQuestion({ ...newQuestion, testCases: JSON.parse(e.target.value) || [] });
+                    } catch {
+                      setMessage('Invalid test cases format');
+                      setAlertVariant('danger');
+                    }
+                  }}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="source">
+                <Form.Label>Source (Optional)</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={newQuestion.source}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
+                />
+              </Form.Group>
+              <Form.Group className="mb-3" controlId="image">
+                <Form.Label>Question Image (Optional)</Form.Label>
+                <div
+                  ref={dropRef}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  style={{ border: '1px solid #ced4da', padding: '1rem', borderRadius: '6px' }}
+                >
+                  <Form.Control
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    capture="environment"
+                    onChange={(e) => setImageFile(e.target.files[0])}
+                    aria-label="Upload or capture question image"
+                  />
+                  <p className="text-muted">Drag and drop or click to upload/capture image (JPEG/PNG only)</p>
+                </div>
+                {imageFile && (
+                  <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+                    <Button onClick={handleImageSubmit} className="mt-2">
+                      Upload Image
+                    </Button>
+                  </motion.div>
+                )}
+                {newQuestion.image && (
+                  <div className="mt-2">
+                    <img
+                      src={newQuestion.image}
+                      alt="Preview of uploaded question"
+                      style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                      onClick={() => handleImageClick(newQuestion.image)}
+                    />
+                  </div>
+                )}
+              </Form.Group>
               <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
-                <Button onClick={handleImageSubmit} className="mt-2">
-                  Upload Image
+                <Button variant="primary" type="submit">
+                  Create Question
                 </Button>
               </motion.div>
-            )}
-            {newQuestion.image && (
-              <div className="mt-2">
-                <img
-                  src={newQuestion.image}
-                  alt="Preview of uploaded question"
-                  style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                />
-              </div>
-            )}
-          </Form.Group>
-          <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Button variant="primary" type="submit">
-              {editingQuestion ? 'Update Question' : 'Create Question'}
+            </Form>
+          </Tab>
+          <Tab eventKey="questions" title="Questions">
+            <ListGroup>
+              {questions.map((q) => (
+                <ListGroup.Item key={q._id} action onClick={() => navigate(`/questions/${q._id}`)}>
+                  <div className="d-flex justify-content-between">
+                    <div>
+                      <h5>{q.questionText}</h5>
+                      <p className="mb-0">Type: {q.type} | Difficulty: {q.difficulty} | Tags: {q.tags.join(", ")}</p>
+                    </div>
+                    <div>
+                      <Button
+                        variant="warning"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/edit-question/${q._id}`);
+                        }}
+                      >
+                        Edit
+                      </Button>{' '}
+                      <Button
+                        variant="danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(q._id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+            <Pagination
+              currentPage={questionPage}
+              totalPages={totalQuestionPages}
+              onPageChange={setQuestionPage}
+            />
+          </Tab>
+          <Tab eventKey="answers" title="Pending Answers">
+            <ListGroup>
+              {pendingAnswers.map((a) => (
+                <ListGroup.Item key={a._id} action onClick={() => navigate(`/questions/${a.questionId._id}`)}>
+                  <div className="d-flex justify-content-between">
+                    <div>
+                      <h5>{a.questionId?.questionText || 'Unknown'}</h5>
+                      <p className="mb-0">Username: {a.userId?.username || 'Unknown'}</p>
+                      <p className="mb-0">Answer: {a.content}</p>
+                      {a.image && (
+                        <img
+                          src={a.image}
+                          alt={`Answer for ${a.questionId?.questionText || 'question'}`}
+                          className="img-fluid mt-2 cursor-pointer"
+                          style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
+                          onClick={() => handleImageClick(a.image)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+            <Pagination
+              currentPage={answerPage}
+              totalPages={totalAnswerPages}
+              onPageChange={setAnswerPage}
+            />
+          </Tab>
+        </Tabs>
+        <Modal show={showImageModal} onHide={handleCloseModal} centered>
+          <Modal.Body>
+            <img
+              src={selectedImage}
+              alt="Enlarged answer"
+              className="img-fluid"
+              style={{ maxWidth: '100%', height: 'auto' }}
+            />
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Close
             </Button>
-            {editingQuestion && (
-              <Button
-                variant="secondary"
-                className="ms-2"
-                onClick={() => {
-                  setEditingQuestion(null);
-                  setNewQuestion({
-                    questionText: '',
-                    type: 'numeric',
-                    cipherType: '',
-                    difficulty: 'easy',
-                    tags: '',
-                    expectedAnswer: '',
-                    testCases: [],
-                    source: '',
-                    image: '',
-                  });
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-          </motion.div>
-        </Form>
-        <h3 className="mt-5">Questions</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Question</th>
-              <th>Type</th>
-              <th>Difficulty</th>
-              <th>Tags</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {questions.map((q) => (
-              <tr key={q._id}>
-                <td>{q.questionText}</td>
-                <td>{q.type}</td>
-                <td>{q.difficulty}</td>
-                <td>{q.tags.join(', ')}</td>
-                <td>
-                  <Button variant="warning" onClick={() => handleEdit(q)}>
-                    Edit
-                  </Button>{' '}
-                  <Button variant="danger" onClick={() => handleDelete(q._id)}>
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-        <h3 className="mt-5">Pending Answers</h3>
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Question</th>
-              <th>Answer</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pendingAnswers.map((a) => (
-              <tr key={a._id}>
-                <td>{a.userId?.username || 'Unknown'}</td>
-                <td>{a.questionId?.questionText || 'Unknown'}</td>
-                <td>{a.content}</td>
-                <td>
-                  <Button variant="success" onClick={() => handleVerifyAnswer(a._id, 'verified')}>
-                    Verify
-                  </Button>{' '}
-                  <Button
-                    variant="warning"
-                    onClick={() => {
-                      const comments = prompt('Enter suggestions for resubmission:');
-                      if (comments) handleSuggestChanges(a._id, comments);
-                    }}
-                  >
-                    Suggest Changes
-                  </Button>{' '}
-                  <Button variant="danger" onClick={() => handleVerifyAnswer(a._id, 'rejected')}>
-                    Reject
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
+          </Modal.Footer>
+        </Modal>
       </motion.div>
     </Container>
   );
