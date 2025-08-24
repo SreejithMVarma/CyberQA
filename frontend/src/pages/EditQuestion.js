@@ -83,8 +83,7 @@ function EditQuestion() {
           withCredentials: true,
         }
       );
-      const fullImageUrl = `${base}${res.data.imageUrl}`;
-      setQuestion({ ...question, image: fullImageUrl });
+      setQuestion({ ...question, image: res.data.imageUrl });
       setImageFile(null);
       setMessage("Image uploaded successfully");
       setAlertVariant("success");
@@ -252,7 +251,7 @@ function EditQuestion() {
             {question.image && (
               <div className="mt-2">
                 <img
-                  src={question.image}
+                  src={`${base}${question.image}`}
                   alt="Preview of uploaded question"
                   style={{
                     maxWidth: "200px",

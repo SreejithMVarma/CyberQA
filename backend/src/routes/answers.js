@@ -40,7 +40,7 @@ router.post('/:questionId', isAuthenticated, upload.single('image'), async (req,
     if (!questionId || !content) {
       return res.status(400).json({ message: 'questionId and content are required' });
     }
-    const image = req.file ? `${process.env.STORAGE_PATH}/${req.file.filename}` : null;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
 
 
     const answer = new Answer({
@@ -107,7 +107,7 @@ router.put('/:id/resubmit', isAuthenticated, upload.single('image'), async (req,
     if (!content) {
       return res.status(400).json({ message: 'content is required' });
     }
-    const image = req.file ? `${process.env.STORAGE_PATH}/${req.file.filename}` : null;
+    const image = req.file ? `/uploads/${req.file.filename}` : null;
 
     const answer = await Answer.findById(req.params.id);
     if (!answer) return res.status(404).json({ message: 'Answer not found' });

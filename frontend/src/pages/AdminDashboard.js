@@ -96,8 +96,7 @@ function AdminDashboard() {
       const res = await axios.post(`${base}/api/questions/upload-image`, formData, {
         withCredentials: true,
       });
-      const fullImageUrl = `${base}${res.data.imageUrl}`;
-      setNewQuestion({ ...newQuestion, image: fullImageUrl });
+      setNewQuestion({ ...newQuestion, image: res.data.imageUrl });
       setImageFile(null);
       setMessage('Image uploaded successfully');
       setAlertVariant('success');
@@ -270,7 +269,7 @@ function AdminDashboard() {
                 {newQuestion.image && (
                   <div className="mt-2">
                     <img
-                      src={newQuestion.image}
+                      src={`${base}${newQuestion.image}`}
                       alt="Preview of uploaded question"
                       style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
                       onClick={() => handleImageClick(newQuestion.image)}
@@ -335,11 +334,11 @@ function AdminDashboard() {
                       <p className="mb-0">Answer: {a.content}</p>
                       {a.image && (
                         <img
-                          src={a.image}
+                          src={`${a.image}`}
                           alt={`Answer for ${a.questionId?.questionText || 'question'}`}
                           className="img-fluid mt-2 cursor-pointer"
                           style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                          onClick={() => handleImageClick(a.image)}
+                          onClick={() => handleImageClick(`${a.image}`)}
                         />
                       )}
                     </div>
@@ -357,7 +356,7 @@ function AdminDashboard() {
         <Modal show={showImageModal} onHide={handleCloseModal} centered>
           <Modal.Body>
             <img
-              src={selectedImage}
+              src={`${base}${selectedImage}`}
               alt="Enlarged answer"
               className="img-fluid"
               style={{ maxWidth: '100%', height: 'auto' }}
