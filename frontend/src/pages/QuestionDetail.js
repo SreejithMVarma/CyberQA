@@ -19,7 +19,7 @@ function QuestionDetail() {
   const [suggestAnswerId, setSuggestAnswerId] = useState(null);
   const [comments, setComments] = useState('');
 
-  const BASE_URL = 'http://localhost:5000';
+  const BASE_URL = process.env.REACT_APP_API_URL;
   const queryParams = new URLSearchParams(location.search);
   const isFromUnsolved = queryParams.get('from') === 'unsolved';
   const focusAnswerId = queryParams.get('answerId');

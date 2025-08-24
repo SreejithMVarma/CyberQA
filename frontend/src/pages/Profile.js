@@ -5,6 +5,8 @@ import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import AnswerForm from '../components/AnswerForm';
 
+const base = process.env.REACT_APP_API_URL;
+
 function Profile() {
   const { user } = useContext(AuthContext);
   const [answers, setAnswers] = useState([]);
@@ -12,7 +14,7 @@ function Profile() {
 
   const fetchAnswers = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/answers/user', { withCredentials: true });
+      const res = await axios.get(`${base}/api/answers/user`, { withCredentials: true });
       setAnswers(res.data);
     } catch (err) {
       console.error('Error fetching answers:', err);

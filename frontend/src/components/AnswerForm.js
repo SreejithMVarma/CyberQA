@@ -3,6 +3,8 @@ import { Form, Button, Alert, Image } from "react-bootstrap";
 import { motion } from "framer-motion";
 import axios from "axios";
 
+const base = process.env.REACT_APP_API_URL;
+
 function AnswerForm({
   questionId,
   answerId,
@@ -66,7 +68,7 @@ function AnswerForm({
         // Resubmission
         formData.delete("questionId");
         res = await axios.put(
-          `http://localhost:5000/api/answers/${answerId}/resubmit`,
+          `${base}/api/answers/${answerId}/resubmit`,
           formData,
           { withCredentials: true }
         );
@@ -74,7 +76,7 @@ function AnswerForm({
         setAlertVariant("success");
       } else {
         // New submission
-        res = await axios.post(`http://localhost:5000/api/answers/${questionId}`, formData, {
+        res = await axios.post(`${base}/api/answers/${questionId}`, formData, {
           withCredentials: true,
         });
         setMessage("Answer submitted successfully");

@@ -5,6 +5,8 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Pagination from '../components/Pagination';
 
+const base = process.env.REACT_APP_API_URL;
+
 function AdminDashboard() {
   const [questions, setQuestions] = useState([]);
   const [newQuestion, setNewQuestion] = useState({
@@ -34,7 +36,7 @@ function AdminDashboard() {
 
   const fetchQuestions = useCallback(async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/questions?page=${questionPage}&limit=${limit}`, {
+      const res = await axios.get(`${base}/api/questions?page=${questionPage}&limit=${limit}`, {
         withCredentials: true,
       });
       setQuestions(res.data.questions || []);
@@ -47,12 +49,12 @@ function AdminDashboard() {
 
   const fetchPendingAnswers = useCallback(async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/answers/pending?page=${answerPage}&limit=${limit}`, {
+      const res = await axios.get(`${base}/api/answers/pending?page=${answerPage}&limit=${limit}`, {
         withCredentials: true,
       });
       const answers = (res.data.answers || []).map((answer) => ({
         ...answer,
-        image: answer.image ? `http://localhost:5000${answer.image}` : '',
+        image: answer.image ? `${base}${answer.image}` : '',
       }));
       setPendingAnswers(answers);
       setTotalAnswerPages(res.data.totalPages || 1);
@@ -91,10 +93,10 @@ function AdminDashboard() {
       }
       const formData = new FormData();
       formData.append('image', imageFile);
-      const res = await axios.post('http://localhost:5000/api/questions/upload-image', formData, {
+      const res = await axios.post(`${base}/api/questions/upload-image`, formData, {
         withCredentials: true,
       });
-      const fullImageUrl = `http://localhost:5000${res.data.imageUrl}`;
+      const fullImageUrl = `${base}${res.data.imageUrl}`;
       setNewQuestion({ ...newQuestion, image: fullImageUrl });
       setImageFile(null);
       setMessage('Image uploaded successfully');
@@ -108,7 +110,7 @@ function AdminDashboard() {
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/questions', newQuestion, {
+      const res = await axios.post(`${base}/api/questions`, newQuestion, {
         withCredentials: true,
       });
       setQuestions([...questions, res.data]);
@@ -133,7 +135,7 @@ function AdminDashboard() {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/questions/${id}`, { withCredentials: true });
+      await axios.delete(`${base}/api/questions/${id}`, { withCredentials: true });
       setQuestions(questions.filter((q) => q._id !== id));
       setMessage('Question deleted successfully');
       setAlertVariant('success');

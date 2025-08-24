@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+const base = process.env.REACT_APP_API_URL;
 
 function Register() {
   const [formData, setFormData] = useState({
@@ -19,8 +20,7 @@ function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/auth/register",
+      const res = await axios.post(`${base}/api/auth/register`,
         formData,
         {
           withCredentials: true,

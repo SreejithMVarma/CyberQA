@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 
+const base = process.env.REACT_APP_API_URL;
+
 function EditQuestion() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,7 +29,7 @@ function EditQuestion() {
     const fetchQuestion = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/questions/${id}`,
+          `${base}/api/questions/${id}`,
           {
             withCredentials: true,
           }
@@ -75,14 +77,13 @@ function EditQuestion() {
       }
       const formData = new FormData();
       formData.append("image", imageFile);
-      const res = await axios.post(
-        "http://localhost:5000/api/questions/upload-image",
+      const res = await axios.post(`${base}/api/questions/upload-image`,
         formData,
         {
           withCredentials: true,
         }
       );
-      const fullImageUrl = `http://localhost:5000${res.data.imageUrl}`;
+      const fullImageUrl = `${base}${res.data.imageUrl}`;
       setQuestion({ ...question, image: fullImageUrl });
       setImageFile(null);
       setMessage("Image uploaded successfully");
@@ -96,7 +97,7 @@ function EditQuestion() {
   const handleQuestionSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:5000/api/questions/${id}`, question, {
+      await axios.put(`${base}/api/questions/${id}`, question, {
         withCredentials: true,
       });
       setMessage("Question updated successfully");
