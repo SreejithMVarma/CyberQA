@@ -5,7 +5,6 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import Pagination from "../components/Pagination";
 
-
 function Questions() {
   const [questions, setQuestions] = useState([]);
   const [filters, setFilters] = useState({
@@ -38,7 +37,7 @@ function Questions() {
       );
       const updatedQuestions = res.data.questions.map((q) => ({
         ...q,
-        image: q.image ? `${process.env.REACT_APP_API_URL}/${q.image.replace(/^\/+/, '')}` : "",
+        image: q.image ? `http://localhost:5000/${q.image.replace(/^\/+/, '')}` : "",
       }));
 
       setQuestions(updatedQuestions);
@@ -145,15 +144,18 @@ function Questions() {
         </Form>
         <ListGroup className="mt-5">
           {questions.map((q) => (
-            <ListGroup.Item
-              key={q._id}
-              action
-              as={Link}
-              to={`/questions/${q._id}`}
-            >
+            <ListGroup.Item key={q._id}>
               <div className="d-flex justify-content-between">
                 <div>
-                  <h5>{q.questionText}</h5>
+                  <h5>
+                    <Link
+                      to={`/questions/${q._id}${
+                        filters.solved === "unsolved" ? "?from=unsolved" : ""
+                      }`}
+                    >
+                      {q.questionText}
+                    </Link>
+                  </h5>
                   <p className="mb-0">
                     Type: {q.type} | Difficulty: {q.difficulty} | Tags:{" "}
                     {q.tags.join(", ")}
