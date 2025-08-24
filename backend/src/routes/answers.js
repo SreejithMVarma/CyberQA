@@ -9,12 +9,12 @@ const path = require('path');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
   const uploadPath = path.join(__dirname, '..', '..', 'uploads');
-    console.log('Saving image to:', uploadPath); // Debug
+   // console.log('Saving image to:', uploadPath); // Debug
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
     const filename = `${Date.now()}-${file.originalname}`;
-    console.log('Generated filename:', filename); // Debug
+   // console.log('Generated filename:', filename); // Debug
     cb(null, filename);
   }
 });
@@ -34,13 +34,14 @@ const upload = multer({
 // Submit answer (users)
 router.post('/:questionId', isAuthenticated, upload.single('image'), async (req, res) => {
   try {
-    console.log('Request body:', req.body); // Debug
-    console.log('Uploaded file:', req.file); // Debug
+   // console.log('Request body:', req.body); // Debug
+   // console.log('Uploaded file:', req.file); // Debug
     const { questionId, content } = req.body;
     if (!questionId || !content) {
       return res.status(400).json({ message: 'questionId and content are required' });
     }
-    const image = req.file ? `/Uploads/${req.file.filename}` : null;
+    const image = req.file ? `${process.env.STORAGE_PATH}/${req.file.filename}` : null;
+
 
     const answer = new Answer({
       questionId,
@@ -100,13 +101,14 @@ router.post('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
 // Resubmit answer (users, only for their own answers)
 router.put('/:id/resubmit', isAuthenticated, upload.single('image'), async (req, res) => {
   try {
-    console.log('Resubmit request body:', req.body); // Debug
-    console.log('Resubmit uploaded file:', req.file); // Debug
+    // console.log('Resubmit request body:', req.body); // Debug
+    // console.log('Resubmit uploaded file:', req.file); // Debug
     const { content } = req.body;
     if (!content) {
       return res.status(400).json({ message: 'content is required' });
     }
-    const image = req.file ? `/Uploads/${req.file.filename}` : null;
+    const image = req.file ? `${process.env.STORAGE_PATH}/${req.file.filename}` : null;
+
     const answer = await Answer.findById(req.params.id);
     if (!answer) return res.status(404).json({ message: 'Answer not found' });
     if (answer.userId.toString() !== req.user.id) {

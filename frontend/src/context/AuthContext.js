@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
+const base = process.env.REACT_APP_API_URL;
 
 export const AuthContext = createContext();
 
@@ -9,7 +10,7 @@ export function AuthProvider({ children }) {
 
   const fetchUser = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/auth/me', { withCredentials: true });
+      const res = await axios.get(`${base}/api/auth/me`, { withCredentials: true });
       setUser(res.data);
     } catch (err) {
       console.error('Error fetching user:', err.response?.status, err.response?.data);
@@ -27,7 +28,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', { email, password }, { withCredentials: true });
+      const res = await axios.post(`${base}/api/auth/login`, { email, password }, { withCredentials: true });
       setUser(res.data.user);
       return res.data;
     } catch (err) {
@@ -37,7 +38,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await axios.post('http://localhost:5000/api/auth/logout', {}, { withCredentials: true });
+      await axios.post(`${base}/api/auth/logout`, {}, { withCredentials: true });
       setUser(null);
     } catch (err) {
       console.error('Error logging out:', err);

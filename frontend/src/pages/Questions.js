@@ -29,15 +29,14 @@ function Questions() {
         page: currentPage,
         limit,
       }).toString();
-      const res = await axios.get(
-        `http://localhost:5000/api/questions?${query}`,
-        {
-          withCredentials: true,
-        }
-      );
+      const base = process.env.REACT_APP_API_URL;
+      const res = await axios.get(`${base}/api/questions?${query}`, {
+        withCredentials: true,
+      });
+
       const updatedQuestions = res.data.questions.map((q) => ({
         ...q,
-        image: q.image ? `http://localhost:5000/${q.image.replace(/^\/+/, '')}` : "",
+        image: q.image ? `${base}/${q.image.replace(/^\/+/, "")}` : "",
       }));
 
       setQuestions(updatedQuestions);
