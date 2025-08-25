@@ -23,12 +23,10 @@ if (!fs.existsSync(uploadsDir)) {
   fs.chmodSync(uploadsDir, '755');
 }
 
-// CORS Middleware
+// --- CORS Middleware ---
 app.use(cors({
-  origin: process.env.CLIENT_URL,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: process.env.CLIENT_URL,  // "https://cyberqna.onrender.com"
+  credentials: true,               // allow cookies across domains
 }));
 
 // Compression for static files
@@ -38,7 +36,9 @@ app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session setup using MongoDB store
+// --- Session setup using MongoDB store ---
+app.set("trust proxy", 1); // important for Render/Heroku behind proxy
+
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
@@ -46,14 +46,14 @@ app.use(session({
   store: MongoStore.create({
     mongoUrl: process.env.MONGO_URI,
     collectionName: 'sessions',
-    ttl: 24 * 60 * 60 // 24 hours
+    ttl: 24 * 60 * 60, // 24 hours
   }),
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+    secure: process.env.NODE_ENV === 'production', // true in prod (HTTPS)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // allow cross-site cookies in prod
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  },
 }));
 
 // Initialize Passport
@@ -69,7 +69,7 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/answers', answerRoutes);
 
 // Base route
-app.get('/', (req, res) => res.send('CyberQA API'));
+app.get('/', (req, res) => res.send('CyberQA API running...'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -78,9 +78,8 @@ app.use((err, req, res, next) => {
 });
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 module.exports = app;

@@ -8,19 +8,22 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = async () => {
-    try {
-      const res = await axios.get(`${base}/api/auth/me`, { withCredentials: true });
-      setUser(res.data);
-    } catch (err) {
-      console.error('Error fetching user:', err.response?.status, err.response?.data);
-      if (err.response?.status !== 401) {
-        setUser(null); // Only clear user on non-401 errors
-      }
-    } finally {
-      setLoading(false);
+const fetchUser = async () => {
+  try {
+    const res = await axios.get(`${base}/api/auth/me`, { withCredentials: true });
+    setUser(res.data);
+  } catch (err) {
+    if (err.response?.status === 401) {
+      setUser(null);
+    } else {
+      console.error("Unexpected error fetching user:", err.response?.status, err.response?.data);
+      setUser(null);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchUser();
