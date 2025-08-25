@@ -106,7 +106,7 @@ function QuestionDetail() {
     setSelectedImage('');
   };
 
-  if (!question) return <div>Page Not Found (404)...</div>;
+  if (!question) return <div>Page Loading...</div>;
 
   const verifiedAnswer = answers.find((a) => a.status === 'verified');
   const pendingAnswers = answers.filter((a) => a.status === 'pending');
