@@ -1,77 +1,86 @@
 import React, { useState, useContext } from 'react';
-import { Container, Form, Button, Alert } from 'react-bootstrap';
+import { Container, Form, Button, Alert, Card, Spinner, InputGroup } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
   const { login, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
       await login(email, password);
-      await refreshUser(); // Refresh user state after login
+      await refreshUser();
       navigate('/questions');
     } catch (err) {
       setMessage(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="card p-4"
-        style={{ maxWidth: '400px', width: '100%' }}
-      >
-        <h2 className="text-center mb-4">Login</h2>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Alert variant="danger">{message}</Alert>
-          </motion.div>
-        )}
+      <Card className="p-4 shadow-lg" style={{ width: '100%', maxWidth: '400px' }}>
+        <h3 className="text-center mb-3">Login</h3>
+        {message && <Alert variant="danger">{message}</Alert>}
         <Form onSubmit={handleSubmit}>
-          <Form.Group className="mb-3" controlId="email">
-            <Form.Label className="form-label">Email</Form.Label>
+          <Form.Group className="mb-3" controlId="formEmail">
+            <Form.Label>Email</Form.Label>
             <Form.Control
               type="email"
+              placeholder="Enter email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="Enter your email"
+              disabled={loading}
             />
           </Form.Group>
-          <Form.Group className="mb-3" controlId="password">
-            <Form.Label className="form-label">Password</Form.Label>
-            <Form.Control
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Enter your password"
-            />
+
+          <Form.Group className="mb-3" controlId="formPassword">
+            <Form.Label>Password</Form.Label>
+            <InputGroup>
+              <Form.Control
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+              />
+              <Button
+                variant="outline-secondary"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </Button>
+            </InputGroup>
           </Form.Group>
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            transition={{ type: 'spring', stiffness: 300 }}
-          >
-            <Button variant="primary" type="submit" className="w-100">
-              Login
+
+          <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button type="submit" variant="primary" className="w-100" disabled={loading}>
+              {loading ? <><Spinner animation="border" size="sm" /> Logging in…</> : 'Login'}
             </Button>
           </motion.div>
         </Form>
-      </motion.div>
+
+        <div className="text-center mt-3">
+          <small>
+            New user? <Link to="/register">Register here</Link>
+          </small>
+        </div>
+      </Card>
     </Container>
   );
 }

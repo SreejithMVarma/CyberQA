@@ -1,104 +1,109 @@
-import React, { useState, useContext } from "react";
-import { Form, Button, Card, Alert } from "react-bootstrap";
-import { motion } from "framer-motion";
-import axios from "axios";
-import { AuthContext } from "../context/AuthContext";
-import { useNavigate } from "react-router-dom";
-const base = process.env.REACT_APP_API_URL;
+import React, { useState, useContext } from 'react';
+import { Container, Form, Button, Alert, Card, Spinner, InputGroup } from 'react-bootstrap';
+import { motion } from 'framer-motion';
+import { AuthContext } from '../context/AuthContext';
+import { useNavigate, Link } from 'react-router-dom';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 function Register() {
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-  });
-  const [message, setMessage] = useState("");
-  const [alertVariant, setAlertVariant] = useState("");
-  const { setUser, refreshUser } = useContext(AuthContext);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const { setUser } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      const res = await axios.post(`${base}/api/auth/register`,
-        formData,
-        {
-          withCredentials: true,
-        }
-      );
-      console.log("Registration response:", res.data);
-      setMessage(res.data.message);
-      setAlertVariant("success");
-      setUser(res.data.user);
-      await refreshUser(); // Refresh user state after registration
-      setTimeout(() => navigate("/"), 1000);
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, email, password }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Registration failed');
+
+      setUser(data.user);
+      navigate('/questions');
     } catch (err) {
-      console.error("Error registering:", err.response?.data || err.message);
-      setMessage(err.response?.data?.message || "Registration failed");
-      setAlertVariant("danger");
+      setMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      <Card className="mx-auto my-5" style={{ maxWidth: "400px" }}>
-        <Card.Body>
-          <Card.Title>Register</Card.Title>
-          {message && <Alert variant={alertVariant}>{message}</Alert>}
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-3" controlId="username">
-              <Form.Label>Username</Form.Label>
+    <Container className="d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
+      <Card className="p-4 shadow-lg" style={{ width: '100%', maxWidth: '400px' }}>
+        <h3 className="text-center mb-3">Register</h3>
+        {message && <Alert variant="danger">{message}</Alert>}
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3" controlId="formUsername">
+            <Form.Label>Username</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Enter username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3" controlId="formEmail">
+            <Form.Label>Email</Form.Label>
+            <Form.Control
+              type="email"
+              placeholder="Enter email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3" controlId="formPassword">
+            <Form.Label>Password</Form.Label>
+            <InputGroup>
               <Form.Control
-                type="text"
-                value={formData.username}
-                onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value })
-                }
-                required
-                placeholder="Enter a username"
-              />
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="email">
-              <Form.Label>Email</Form.Label>
-              <Form.Control
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                required
-                placeholder="Enter email"
-              />
-            </Form.Group>
-            <Form.Group className="mb-3" controlId="password">
-              <Form.Label>Password</Form.Label>
-              <Form.Control
-                type="password"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
-                required
+                type={showPassword ? 'text' : 'password'}
                 placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
               />
-            </Form.Group>
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-              style={{ display: "inline-block", transformOrigin: "center" }}
-            >
-              <Button variant="primary" type="submit">
-                Register
+              <Button
+                variant="outline-secondary"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
               </Button>
-            </motion.div>
-          </Form>
-        </Card.Body>
+            </InputGroup>
+          </Form.Group>
+
+          <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Button type="submit" variant="primary" className="w-100" disabled={loading}>
+              {loading ? <><Spinner animation="border" size="sm" /> Registering…</> : 'Register'}
+            </Button>
+          </motion.div>
+        </Form>
+
+        <div className="text-center mt-3">
+          <small>
+            Already have an account? <Link to="/login">Login here</Link>
+          </small>
+        </div>
       </Card>
-    </motion.div>
+    </Container>
   );
 }
 
