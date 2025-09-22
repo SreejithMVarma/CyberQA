@@ -1,0 +1,3 @@
+PS C:\Users\Cyber\CyberQA\frontend> serve -s build -l 3000 
+
+PS C:\Users\Cyber\CyberQA\backend> node src/server.js
