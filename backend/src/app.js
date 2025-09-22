@@ -25,7 +25,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // --- CORS Middleware ---
 app.use(cors({
-  origin: process.env.CLIENT_URL,  // "https://cyberqna.onrender.com"
+  origin: true,  // "https://cyberqna.onrender.com"
   credentials: true,               // allow cookies across domains
 }));
 
@@ -68,8 +68,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/answers', answerRoutes);
 
-// Base route
-app.get('/', (req, res) => res.send('CyberQA API running...'));
+// Base route for API health
+app.get('/api', (req, res) => res.send('CyberQA API running...'));
+
+// --- React static hosting ---
+// const clientBuildPath = path.join(__dirname, '..', 'frontend', 'build');
+// app.use(express.static(clientBuildPath));
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(clientBuildPath, 'index.html'));
+// });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
