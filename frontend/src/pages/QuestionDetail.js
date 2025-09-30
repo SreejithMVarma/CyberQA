@@ -371,7 +371,7 @@ function QuestionDetail() {
         <Modal show={showImageModal} onHide={handleCloseModal} centered>
           <Modal.Body>
             <img
-              src={selectedImage}
+              src={selectedImage || null}
               alt="Enlarged view"
               className="img-fluid"
               style={{ maxWidth: '100%', height: 'auto' }}

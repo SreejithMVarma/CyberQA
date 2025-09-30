@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const questionSchema = new mongoose.Schema({
   questionText: { type: String, required: true },
-  type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula'], required: true },
+  type: { type: String, enum: ['numeric', 'ciphertext', 'code', 'formula', 'subjective'], required: true },
   cipherType: { type: String, default: '' },
   difficulty: { type: String, enum: ['easy', 'medium', 'hard'], required: true },
   tags: [{ type: String }],

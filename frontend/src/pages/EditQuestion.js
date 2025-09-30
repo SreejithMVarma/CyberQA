@@ -119,7 +119,7 @@ function EditQuestion() {
         {message && <Alert variant={alertVariant}>{message}</Alert>}
         <Form onSubmit={handleQuestionSubmit}>
           <Form.Group className="mb-3" controlId="questionText">
-            <Form.Label>Question Text</Form.Label>
+            <Form.Label>Question Text <span style={{ color: 'red' }}>*</span></Form.Label>
             <Form.Control
               as="textarea"
               value={question.questionText}
@@ -130,7 +130,7 @@ function EditQuestion() {
             />
           </Form.Group>
           <Form.Group className="mb-3" controlId="type">
-            <Form.Label>Type</Form.Label>
+            <Form.Label>Type <span style={{ color: 'red' }}>*</span></Form.Label>
             <Form.Select
               value={question.type}
               onChange={(e) =>
@@ -141,10 +141,11 @@ function EditQuestion() {
               <option value="ciphertext">Ciphertext</option>
               <option value="code">Code</option>
               <option value="formula">Formula</option>
+              <option value="subjective">Subjective</option>
             </Form.Select>
           </Form.Group>
           <Form.Group className="mb-3" controlId="cipherType">
-            <Form.Label>Cipher Type (Optional)</Form.Label>
+            <Form.Label>Cipher Type</Form.Label>
             <Form.Control
               type="text"
               value={question.cipherType}
@@ -154,7 +155,7 @@ function EditQuestion() {
             />
           </Form.Group>
           <Form.Group className="mb-3" controlId="difficulty">
-            <Form.Label>Difficulty</Form.Label>
+            <Form.Label>Difficulty <span style={{ color: 'red' }}>*</span></Form.Label>
             <Form.Select
               value={question.difficulty}
               onChange={(e) =>
@@ -177,7 +178,7 @@ function EditQuestion() {
             />
           </Form.Group>
           <Form.Group className="mb-3" controlId="expectedAnswer">
-            <Form.Label>Expected Answer (Optional)</Form.Label>
+            <Form.Label>Expected Answer</Form.Label>
             <Form.Control
               as="textarea"
               value={question.expectedAnswer}
@@ -187,7 +188,7 @@ function EditQuestion() {
             />
           </Form.Group>
           <Form.Group className="mb-3" controlId="testCases">
-            <Form.Label>Test Cases (Optional)</Form.Label>
+            <Form.Label>Test Cases</Form.Label>
             <Form.Control
               as="textarea"
               value={JSON.stringify(question.testCases)}
@@ -205,7 +206,7 @@ function EditQuestion() {
             />
           </Form.Group>
           <Form.Group className="mb-3" controlId="source">
-            <Form.Label>Source (Optional)</Form.Label>
+            <Form.Label>Source</Form.Label>
             <Form.Control
               type="text"
               value={question.source}
@@ -215,7 +216,7 @@ function EditQuestion() {
             />
           </Form.Group>
           <Form.Group className="mb-3" controlId="image">
-            <Form.Label>Question Image (Optional)</Form.Label>
+            <Form.Label>Question Image</Form.Label>
             <div
               ref={dropRef}
               onDragOver={handleDragOver}
