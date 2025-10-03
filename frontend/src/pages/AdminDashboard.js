@@ -18,12 +18,12 @@ function AdminDashboard() {
     expectedAnswer: '',
     testCases: [],
     source: '',
-    image: '',
+    images: [],
   });
   const [pendingAnswers, setPendingAnswers] = useState([]);
   const [message, setMessage] = useState('');
   const [alertVariant, setAlertVariant] = useState('');
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
   const [questionPage, setQuestionPage] = useState(1);
   const [answerPage, setAnswerPage] = useState(1);
   const [totalQuestionPages, setTotalQuestionPages] = useState(1);
@@ -54,7 +54,7 @@ function AdminDashboard() {
       });
       const answers = (res.data.answers || []).map((answer) => ({
         ...answer,
-        image: answer.image ? `${base}${answer.image}` : '',
+        images: answer.images ? answer.images.map(img => `${base}${img}`) : [],
       }));
       setPendingAnswers(answers);
       setTotalAnswerPages(res.data.totalPages || 1);
@@ -80,25 +80,27 @@ function AdminDashboard() {
 
   const handleDrop = (e) => {
     e.preventDefault();
-    setImageFile(e.dataTransfer.files[0]);
+    setImageFiles(Array.from(e.dataTransfer.files));
     dropRef.current.style.border = '1px solid #ced4da';
   };
 
   const handleImageSubmit = async () => {
     try {
-      if (!imageFile) {
-        setMessage('Please select an image');
+      if (imageFiles.length === 0) {
+        setMessage('Please select one or more images');
         setAlertVariant('danger');
         return;
       }
       const formData = new FormData();
-      formData.append('image', imageFile);
-      const res = await axios.post(`${base}/api/questions/upload-image`, formData, {
+      imageFiles.forEach(file => {
+        formData.append('images', file);
+      });
+      const res = await axios.post(`${base}/api/questions/upload-images`, formData, {
         withCredentials: true,
       });
-      setNewQuestion({ ...newQuestion, image: res.data.imageUrl });
-      setImageFile(null);
-      setMessage('Image uploaded successfully');
+      setNewQuestion({ ...newQuestion, images: res.data.imageUrls });
+      setImageFiles([]);
+      setMessage('Images uploaded successfully');
       setAlertVariant('success');
     } catch (err) {
       setMessage(err.response?.data?.message || 'Image upload failed');
@@ -124,7 +126,7 @@ function AdminDashboard() {
         expectedAnswer: '',
         testCases: [],
         source: '',
-        image: '',
+        images: [],
       });
     } catch (err) {
       setMessage(err.response?.data?.message || 'Failed to save question');
@@ -242,8 +244,8 @@ function AdminDashboard() {
                   onChange={(e) => setNewQuestion({ ...newQuestion, source: e.target.value })}
                 />
               </Form.Group>
-              <Form.Group className="mb-3" controlId="image">
-                <Form.Label>Question Image</Form.Label>
+              <Form.Group className="mb-3" controlId="images">
+                <Form.Label>Question Images</Form.Label>
                 <div
                   ref={dropRef}
                   onDragOver={handleDragOver}
@@ -253,28 +255,31 @@ function AdminDashboard() {
                 >
                   <Form.Control
                     type="file"
+                    multiple
                     accept="image/jpeg,image/png"
-                    capture="environment"
-                    onChange={(e) => setImageFile(e.target.files[0])}
-                    aria-label="Upload or capture question image"
+                    onChange={(e) => setImageFiles(Array.from(e.target.files))}
+                    aria-label="Upload or capture question images"
                   />
-                  <p className="text-muted">Drag and drop or click to upload/capture image (JPEG/PNG only)</p>
+                  <p className="text-muted">Drag and drop or click to upload/capture images (JPEG/PNG only)</p>
                 </div>
-                {imageFile && (
+                {imageFiles.length > 0 && (
                   <motion.div whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
                     <Button onClick={handleImageSubmit} className="mt-2">
-                      Upload Image
+                      Upload Images
                     </Button>
                   </motion.div>
                 )}
-                {newQuestion.image && (
-                  <div className="mt-2">
-                    <img
-                      src={`${base}${newQuestion.image}`}
-                      alt="Preview of uploaded question"
-                      style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                      onClick={() => handleImageClick(newQuestion.image)}
-                    />
+                {newQuestion.images.length > 0 && (
+                  <div className="mt-2 d-flex flex-wrap">
+                    {newQuestion.images.map((img, index) => (
+                      <img
+                        key={index}
+                        src={`${base}${img}`}
+                        alt={`Preview of uploaded question ${index + 1}`}
+                        style={{ maxWidth: '100px', height: 'auto', borderRadius: '6px', marginRight: '10px', marginBottom: '10px' }}
+                        onClick={() => handleImageClick(img)}
+                      />
+                    ))}
                   </div>
                 )}
               </Form.Group>
@@ -333,14 +338,19 @@ function AdminDashboard() {
                       <h5>{a.questionId?.questionText || 'Unknown'}</h5>
                       <p className="mb-0">Username: {a.userId?.username || 'Unknown'}</p>
                       <p className="mb-0">Answer: {a.content}</p>
-                      {a.image && (
-                        <img
-                          src={`${a.image}`}
-                          alt={`Answer for ${a.questionId?.questionText || 'question'}`}
-                          className="img-fluid mt-2 cursor-pointer"
-                          style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                          onClick={() => handleImageClick(`${a.image}`)}
-                        />
+                      {a.images && a.images.length > 0 && (
+                        <div className="mt-2 d-flex flex-wrap">
+                          {a.images.map((img, index) => (
+                            <img
+                              key={index}
+                              src={img}
+                              alt={`Answer for ${a.questionId?.questionText || 'question'} ${index + 1}`}
+                              className="img-fluid mt-2 cursor-pointer"
+                              style={{ maxWidth: '100px', height: 'auto', borderRadius: '6px', marginRight: '10px' }}
+                              onClick={() => handleImageClick(img)}
+                            />
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>

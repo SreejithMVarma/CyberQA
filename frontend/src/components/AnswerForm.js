@@ -5,17 +5,10 @@ import axios from "axios";
 
 const base = process.env.REACT_APP_API_URL;
 
-function AnswerForm({
-  questionId,
-  answerId,
-  setMessage,
-  setAlertVariant,
-  initialContent = "",
-  onSubmitSuccess,
-}) {
+function AnswerForm({ questionId, answerId, setMessage, setAlertVariant, initialContent = "", onSubmitSuccess }) {
   const [content, setContent] = useState(initialContent);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
   const dropRef = useRef(null);
 
   const handleDragOver = (e) => {
@@ -30,61 +23,65 @@ function AnswerForm({
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-      dropRef.current.style.border = "2px solid #ced4da";
-    } else {
-      setMessage("Please upload an image file");
-      setAlertVariant("danger");
-    }
+    const files = Array.from(e.dataTransfer.files);
+    handleFiles(files);
+    dropRef.current.style.border = "2px solid #ced4da";
   };
 
-  const handleCameraCapture = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith("image/")) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    } else {
-      setMessage("Please upload an image file");
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files);
+    handleFiles(files);
+  };
+
+  const handleFiles = (files) => {
+    const newImageFiles = [];
+    const newImagePreviews = [];
+    let hasInvalidFile = false;
+
+    files.forEach(file => {
+      if (file && file.type.startsWith("image/")) {
+        newImageFiles.push(file);
+        newImagePreviews.push(URL.createObjectURL(file));
+      } else {
+        hasInvalidFile = true;
+      }
+    });
+
+    if (hasInvalidFile) {
+      setMessage("Please upload only image files");
       setAlertVariant("danger");
     }
+
+    setImageFiles(prev => [...prev, ...newImageFiles]);
+    setImagePreviews(prev => [...prev, ...newImagePreviews]);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Submitting answer for questionId:", questionId); // Debug
     const formData = new FormData();
     formData.append("content", content);
     formData.append("questionId", questionId);
-    if (imageFile) {
-      formData.append("image", imageFile);
+    if (imageFiles.length > 0) {
+      imageFiles.forEach(file => {
+        formData.append("images", file);
+      });
     }
 
     try {
       let res;
       if (answerId) {
-        // Resubmission
         formData.delete("questionId");
-        res = await axios.put(
-          `${base}/api/answers/${answerId}/resubmit`,
-          formData,
-          { withCredentials: true }
-        );
+        res = await axios.put(`${base}/api/answers/${answerId}/resubmit`, formData, { withCredentials: true });
         setMessage("Answer resubmitted successfully");
         setAlertVariant("success");
       } else {
-        // New submission
-        res = await axios.post(`${base}/api/answers/${questionId}`, formData, {
-          withCredentials: true,
-        });
+        res = await axios.post(`${base}/api/answers/${questionId}`, formData, { withCredentials: true });
         setMessage("Answer submitted successfully");
         setAlertVariant("success");
       }
       setContent("");
-      setImageFile(null);
-      setImagePreview(null);
+      setImageFiles([]);
+      setImagePreviews([]);
       if (onSubmitSuccess) onSubmitSuccess(res.data);
     } catch (err) {
       console.error("Error submitting answer:", err);
@@ -93,7 +90,6 @@ function AnswerForm({
     }
   };
 
-  // Unique ID for file input
   const fileInputId = `imageUpload-${questionId}`;
 
   return (
@@ -110,7 +106,7 @@ function AnswerForm({
         />
       </Form.Group>
       <Form.Group className="mb-3">
-        <Form.Label>Answer Image (Optional)</Form.Label>
+        <Form.Label>Answer Images (Optional)</Form.Label>
         <div
           ref={dropRef}
           onDragOver={handleDragOver}
@@ -125,16 +121,16 @@ function AnswerForm({
             backgroundColor: "#f8f9fa",
           }}
         >
-          {imageFile ? (
-            <p>Selected: {imageFile.name}</p>
+          {imageFiles.length > 0 ? (
+            <p>Selected: {imageFiles.length} file(s)</p>
           ) : (
-            <p>Drop image here or click to upload</p>
+            <p>Drop images here or click to upload</p>
           )}
           <input
             type="file"
             accept="image/*"
-            capture="environment"
-            onChange={handleCameraCapture}
+            multiple
+            onChange={handleFileChange}
             style={{ display: "none" }}
             id={fileInputId}
           />
@@ -142,23 +138,27 @@ function AnswerForm({
             htmlFor={fileInputId}
             style={{ cursor: "pointer", color: "#007bff" }}
           >
-            Choose Image
+            Choose Images
           </Form.Label>
         </div>
-        {imagePreview && (
-          <div className="mt-3" style={{ textAlign: "center" }}>
-            <Image
-              src={imagePreview}
-              alt="Uploaded answer preview"
-              thumbnail
-              style={{
-                maxWidth: "150px",
-                maxHeight: "150px",
-                border: "1px solid #ced4da",
-                borderRadius: "4px",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              }}
-            />
+        {imagePreviews.length > 0 && (
+          <div className="mt-3 d-flex flex-wrap justify-content-center">
+            {imagePreviews.map((preview, index) => (
+              <Image
+                key={index}
+                src={preview}
+                alt={`Uploaded answer preview ${index + 1}`}
+                thumbnail
+                style={{
+                  maxWidth: "100px",
+                  maxHeight: "100px",
+                  margin: "5px",
+                  border: "1px solid #ced4da",
+                  borderRadius: "4px",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                }}
+              />
+            ))}
           </div>
         )}
       </Form.Group>

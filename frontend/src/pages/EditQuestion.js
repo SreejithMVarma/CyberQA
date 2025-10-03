@@ -18,11 +18,11 @@ function EditQuestion() {
     expectedAnswer: "",
     testCases: [],
     source: "",
-    image: "",
+    images: [],
   });
   const [message, setMessage] = useState("");
   const [alertVariant, setAlertVariant] = useState("");
-  const [imageFile, setImageFile] = useState(null);
+  const [imageFiles, setImageFiles] = useState([]);
   const dropRef = useRef(null);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ function EditQuestion() {
           expectedAnswer: res.data.expectedAnswer || "",
           testCases: res.data.testCases || [],
           source: res.data.source || "",
-          image: res.data.image || "",
+          images: res.data.images || [],
         });
       } catch (err) {
         setMessage(err.response?.data?.message || "Failed to load question");
@@ -64,28 +64,30 @@ function EditQuestion() {
 
   const handleDrop = (e) => {
     e.preventDefault();
-    setImageFile(e.dataTransfer.files[0]);
+    setImageFiles(Array.from(e.dataTransfer.files));
     dropRef.current.style.border = "1px solid var(--border)";
   };
 
   const handleImageSubmit = async () => {
     try {
-      if (!imageFile) {
-        setMessage("Please select an image");
+      if (imageFiles.length === 0) {
+        setMessage("Please select one or more images");
         setAlertVariant("danger");
         return;
       }
       const formData = new FormData();
-      formData.append("image", imageFile);
-      const res = await axios.post(`${base}/api/questions/upload-image`,
+      imageFiles.forEach(file => {
+        formData.append("images", file);
+      });
+      const res = await axios.post(`${base}/api/questions/upload-images`,
         formData,
         {
           withCredentials: true,
         }
       );
-      setQuestion({ ...question, image: res.data.imageUrl });
-      setImageFile(null);
-      setMessage("Image uploaded successfully");
+      setQuestion({ ...question, images: [...question.images, ...res.data.imageUrls] });
+      setImageFiles([]);
+      setMessage("Images uploaded successfully");
       setAlertVariant("success");
     } catch (err) {
       setMessage(err.response?.data?.message || "Image upload failed");
@@ -215,8 +217,8 @@ function EditQuestion() {
               }
             />
           </Form.Group>
-          <Form.Group className="mb-3" controlId="image">
-            <Form.Label>Question Image</Form.Label>
+          <Form.Group className="mb-3" controlId="images">
+            <Form.Label>Question Images</Form.Label>
             <div
               ref={dropRef}
               onDragOver={handleDragOver}
@@ -230,36 +232,41 @@ function EditQuestion() {
             >
               <Form.Control
                 type="file"
+                multiple
                 accept="image/jpeg,image/png"
-                capture="environment"
-                onChange={(e) => setImageFile(e.target.files[0])}
-                aria-label="Upload or capture question image"
+                onChange={(e) => setImageFiles(Array.from(e.target.files))}
+                aria-label="Upload or capture question images"
               />
               <p className="text-muted">
-                Drag and drop or click to upload/capture image (JPEG/PNG only)
+                Drag and drop or click to upload/capture images (JPEG/PNG only)
               </p>
             </div>
-            {imageFile && (
+            {imageFiles.length > 0 && (
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <Button onClick={handleImageSubmit} className="mt-2">
-                  Upload Image
+                  Upload Images
                 </Button>
               </motion.div>
             )}
-            {question.image && (
-              <div className="mt-2">
-                <img
-                  src={`${base}${question.image}`}
-                  alt="Preview of uploaded question"
-                  style={{
-                    maxWidth: "200px",
-                    height: "auto",
-                    borderRadius: "6px",
-                  }}
-                />
+            {question.images && question.images.length > 0 && (
+              <div className="mt-2 d-flex flex-wrap">
+                {question.images.map((img, index) => (
+                  <img
+                    key={index}
+                    src={`${base}${img}`}
+                    alt={`Preview of uploaded question ${index + 1}`}
+                    style={{
+                      maxWidth: "100px",
+                      height: "auto",
+                      borderRadius: "6px",
+                      marginRight: "10px",
+                      marginBottom: "10px",
+                    }}
+                  />
+                ))}
               </div>
             )}
           </Form.Group>

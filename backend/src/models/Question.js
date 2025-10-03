@@ -9,7 +9,7 @@ const questionSchema = new mongoose.Schema({
   expectedAnswer: { type: String, default: '' },
   testCases: [{ input: String, output: String }],
   source: { type: String, default: '' },
-  image: { type: String, default: '' },
+  images: [{ type: String }],
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 },{ strict: true });

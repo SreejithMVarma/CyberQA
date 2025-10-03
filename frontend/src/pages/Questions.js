@@ -36,7 +36,7 @@ function Questions() {
 
       const updatedQuestions = res.data.questions.map((q) => ({
         ...q,
-        image: q.image ? `${base}/${q.image.replace(/^\/+/, "")}` : "",
+        images: q.images ? q.images.map(img => `${base}/${img.replace(/^\/+/, "")}`) : [],
       }));
 
       setQuestions(updatedQuestions);
@@ -160,9 +160,9 @@ function Questions() {
                     {q.tags.join(", ")}
                   </p>
                 </div>
-                {q.image && (
+                {q.images && q.images.length > 0 && (
                   <img
-                    src={q.image}
+                    src={q.images[0]}
                     alt={`Thumbnail for ${q.questionText}`}
                     style={{
                       maxWidth: "50px",
@@ -183,6 +183,7 @@ function Questions() {
       </motion.div>
     </Container>
   );
+
 }
 
 export default Questions;

@@ -6,10 +6,11 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 
+const fs = require('fs');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-  const uploadPath = path.join(__dirname, '..', '..', 'uploads');
-   // console.log('Saving image to:', uploadPath); // Debug
+    const uploadPath = path.join(__dirname, '..', '..', 'uploads', 'answers', req.params.questionId);
+    fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
@@ -32,22 +33,19 @@ const upload = multer({
 });
 
 // Submit answer (users)
-router.post('/:questionId', isAuthenticated, upload.single('image'), async (req, res) => {
+router.post('/:questionId', isAuthenticated, upload.array('images', 10), async (req, res) => {
   try {
-   // console.log('Request body:', req.body); // Debug
-   // console.log('Uploaded file:', req.file); // Debug
     const { questionId, content } = req.body;
     if (!questionId || !content) {
       return res.status(400).json({ message: 'questionId and content are required' });
     }
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
-
+    const images = req.files ? req.files.map(file => `/uploads/answers/${questionId}/${file.filename}`) : [];
 
     const answer = new Answer({
       questionId,
       userId: req.user.id,
       content,
-      image,
+      images,
     });
     await answer.save();
     res.status(201).json(answer);
@@ -99,23 +97,26 @@ router.post('/:id/suggest', isAuthenticated, isAdmin, async (req, res) => {
 });
 
 // Resubmit answer (users, only for their own answers)
-router.put('/:id/resubmit', isAuthenticated, upload.single('image'), async (req, res) => {
+router.put('/:id/resubmit', isAuthenticated, upload.array('images', 10), async (req, res) => {
   try {
-    // console.log('Resubmit request body:', req.body); // Debug
-    // console.log('Resubmit uploaded file:', req.file); // Debug
     const { content } = req.body;
     if (!content) {
       return res.status(400).json({ message: 'content is required' });
     }
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
 
     const answer = await Answer.findById(req.params.id);
     if (!answer) return res.status(404).json({ message: 'Answer not found' });
+
     if (answer.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Unauthorized to resubmit this answer' });
     }
+
+    if (req.files && req.files.length > 0) {
+      const images = req.files.map(file => `/uploads/answers/${answer.questionId}/${file.filename}`);
+      answer.images = images;
+    }
+
     answer.content = content;
-    answer.image = image || answer.image;
     answer.status = 'pending';
     answer.adminComments = '';
     await answer.save();

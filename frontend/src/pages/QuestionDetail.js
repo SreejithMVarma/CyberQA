@@ -124,14 +124,19 @@ function QuestionDetail() {
           <Card.Body>
             <Card.Title>{question.questionText}</Card.Title>
             <Card.Text>{question.content}</Card.Text>
-            {question.image && (
-              <img
-                src={`${BASE_URL}${question.image}`}
-                alt={`Visual for question: ${question.questionText}`}
-                className="img-fluid mb-3 cursor-pointer"
-                style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                onClick={() => handleImageClick(`${BASE_URL}${question.image}`)}
-              />
+            {question.images && question.images.length > 0 && (
+              <div className="mb-3">
+                {question.images.map((img, index) => (
+                  <img
+                    key={index}
+                    src={`${BASE_URL}${img}`}
+                    alt={`Visual for question: ${question.questionText} ${index + 1}`}
+                    className="img-fluid mb-2 cursor-pointer"
+                    style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px', marginRight: '10px' }}
+                    onClick={() => handleImageClick(`${BASE_URL}${img}`)}
+                  />
+                ))}
+              </div>
             )}
             <Card.Text>Type: {question.type}</Card.Text>
             <Card.Text>Difficulty: {question.difficulty}</Card.Text>
@@ -149,14 +154,19 @@ function QuestionDetail() {
                   Username: {focusAnswer.userId?.username || 'Unknown'}
                 </Card.Subtitle>
                 <Card.Text>{focusAnswer.content}</Card.Text>
-                {focusAnswer.image && (
-                  <img
-                    src={`${BASE_URL}${focusAnswer.image}`}
-                    alt="Pending answer"
-                    className="img-fluid mb-3 cursor-pointer"
-                    style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                    onClick={() => handleImageClick(`${BASE_URL}${focusAnswer.image}`)}
-                  />
+                {focusAnswer.images && focusAnswer.images.length > 0 && (
+                  <div className="mb-3">
+                    {focusAnswer.images.map((img, index) => (
+                      <img
+                        key={index}
+                        src={`${BASE_URL}${img}`}
+                        alt={`Pending answer ${index + 1}`}
+                        className="img-fluid mb-2 cursor-pointer"
+                        style={{ maxWidth: '150px', height: 'auto', borderRadius: '6px', marginRight: '10px' }}
+                        onClick={() => handleImageClick(`${BASE_URL}${img}`)}
+                      />
+                    ))}
+                  </div>
                 )}
                 <div className="mt-2">
                   <Button
@@ -228,14 +238,19 @@ function QuestionDetail() {
                     Username: {verifiedAnswer.userId?.username || 'Unknown'}
                   </Card.Subtitle>
                   <Card.Text>{verifiedAnswer.content}</Card.Text>
-                  {verifiedAnswer.image && (
-                    <img
-                      src={`${BASE_URL}${verifiedAnswer.image}`}
-                      alt="Verified answer"
-                      className="img-fluid mb-3 cursor-pointer"
-                      style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                      onClick={() => handleImageClick(`${BASE_URL}${verifiedAnswer.image}`)}
-                    />
+                  {verifiedAnswer.images && verifiedAnswer.images.length > 0 && (
+                    <div className="mb-3">
+                      {verifiedAnswer.images.map((img, index) => (
+                        <img
+                          key={index}
+                          src={`${BASE_URL}${img}`}
+                          alt={`Verified answer ${index + 1}`}
+                          className="img-fluid mb-2 cursor-pointer"
+                          style={{ maxWidth: '150px', height: 'auto', borderRadius: '6px', marginRight: '10px' }}
+                          onClick={() => handleImageClick(`${BASE_URL}${img}`)}
+                        />
+                      ))}
+                    </div>
                   )}
                 </Card.Body>
               </Card>
@@ -247,14 +262,19 @@ function QuestionDetail() {
                       Username: {a.userId?.username || 'Unknown'}
                     </Card.Subtitle>
                     <Card.Text>{a.content}</Card.Text>
-                    {a.image && (
-                      <img
-                        src={`${BASE_URL}${a.image}`}
-                        alt="Answer"
-                        className="img-fluid mb-3 cursor-pointer"
-                        style={{ maxWidth: '200px', height: 'auto', borderRadius: '6px' }}
-                        onClick={() => handleImageClick(`${BASE_URL}${a.image}`)}
-                      />
+                    {a.images && a.images.length > 0 && (
+                      <div className="mb-3">
+                        {a.images.map((img, index) => (
+                          <img
+                            key={index}
+                            src={`${BASE_URL}${img}`}
+                            alt={`Answer ${index + 1}`}
+                            className="img-fluid mb-2 cursor-pointer"
+                            style={{ maxWidth: '150px', height: 'auto', borderRadius: '6px', marginRight: '10px' }}
+                            onClick={() => handleImageClick(`${BASE_URL}${img}`)}
+                          />
+                        ))}
+                      </div>
                     )}
                     <div className="mt-2">
                       <Button

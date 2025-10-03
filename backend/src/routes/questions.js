@@ -6,9 +6,14 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 
+const fs = require('fs');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "..", "..", "uploads"));
+    if (!req.uploadPath) {
+      req.uploadPath = path.join(__dirname, '..', '..', 'uploads', 'questions', `${Date.now()}`);
+      fs.mkdirSync(req.uploadPath, { recursive: true });
+    }
+    cb(null, req.uploadPath);
   },
   filename: (req, file, cb) => {
     cb(null, `${Date.now()}-${file.originalname}`);
@@ -76,20 +81,20 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Upload image for question
+// Upload images for question
 router.post(
-  "/upload-image",
+  "/upload-images",
   isAuthenticated,
   isAdmin,
-  upload.single("image"),
+  upload.array("images", 10),
   async (req, res) => {
     try {
-      if (!req.file)
-        return res.status(400).json({ message: "No file uploaded" });
-      const imageUrl = `/uploads/${req.file.filename}`;
-      res.json({ imageUrl });
+      if (!req.files || req.files.length === 0)
+        return res.status(400).json({ message: "No files uploaded" });
+      const imageUrls = req.files.map(file => `/uploads/questions/${path.basename(path.dirname(file.path))}/${file.filename}`);
+      res.json({ imageUrls });
     } catch (err) {
-      console.error("Error uploading image:", err);
+      console.error("Error uploading images:", err);
       res.status(500).json({ message: err.message });
     }
   }
@@ -107,7 +112,7 @@ router.post("/", isAuthenticated, isAdmin, async (req, res) => {
       expectedAnswer,
       testCases,
       source,
-      image,
+      images,
     } = req.body;
     if (!questionText || !type || !difficulty) {
       return res
@@ -123,7 +128,7 @@ router.post("/", isAuthenticated, isAdmin, async (req, res) => {
       expectedAnswer: expectedAnswer || "",
       testCases: testCases || [],
       source: source || "",
-      image: image || "",
+      images: images || [],
     });
     await question.save();
     res.status(201).json(question);
@@ -145,7 +150,7 @@ router.put("/:id", isAuthenticated, isAdmin, async (req, res) => {
       expectedAnswer,
       testCases,
       source,
-      image,
+      images,
     } = req.body;
     const question = await Question.findById(req.params.id);
     if (!question)
@@ -158,7 +163,7 @@ router.put("/:id", isAuthenticated, isAdmin, async (req, res) => {
     question.expectedAnswer = expectedAnswer || "";
     question.testCases = testCases || [];
     question.source = source || "";
-    question.image = image || "";
+    question.images = images || [];
     await question.save();
     res.json(question);
   } catch (err) {
