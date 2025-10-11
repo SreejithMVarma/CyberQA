@@ -25,7 +25,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // --- CORS Middleware ---
 app.use(cors({
-  origin: true,  // "https://cyberqna.onrender.com"
+  origin: process.env.CLIENT_URL,  // "https://cyberqna.onrender.com"
   credentials: true,               // allow cookies across domains
 }));
 
@@ -37,7 +37,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // --- Session setup using MongoDB store ---
-app.set("trust proxy", 1); // important for Render/Heroku behind proxy
+//app.set("trust proxy", 1); // important for Render/Heroku behind proxy
 
 app.use(session({
   secret: process.env.SESSION_SECRET,
@@ -48,12 +48,12 @@ app.use(session({
     collectionName: 'sessions',
     ttl: 24 * 60 * 60, // 24 hours
   }),
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true in prod (HTTPS)
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // allow cross-site cookies in prod
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-  },
+cookie: {
+  httpOnly: true,
+  secure: false,        // HTTP
+  sameSite: 'lax',      // allow cross-origin cookies in dev
+  maxAge: 24 * 60 * 60 * 1000
+},
 }));
 
 // Initialize Passport
